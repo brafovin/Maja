@@ -267,7 +267,7 @@
       this.attackCd = 0;
       this.swing = -1;
       this.fuse = 0;
-      this.burnT = 0;
+      this.burnT = 1; // erst nach einer Sekunde in der Sonne fängt ein Zombie Feuer
       this.shootCd = 1 + Math.random();
       this.onGround = false;
       this.fallY = y;

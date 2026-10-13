@@ -81,9 +81,11 @@
     Game.autoJump = s.autoJump !== undefined ? s.autoJump : true;
     Game.setViewRadius(s.view || (touch ? 4 : 6));
     G.Audio.setEnabled(s.sound !== undefined ? s.sound : true);
+    // Standard ist die Ich-Perspektive
+    P.camMode = s.cam === 'third' ? 'third' : 'first';
   }
   Game.saveSettings = () => {
-    U.store.set(KEY_SET, { monsters: Game.monstersOn, autoJump: Game.autoJump, view: Game.viewRadius, sound: G.Audio.enabled });
+    U.store.set(KEY_SET, { monsters: Game.monstersOn, autoJump: Game.autoJump, view: Game.viewRadius, sound: G.Audio.enabled, cam: P.camMode });
   };
   Game.setViewRadius = (r) => {
     Game.viewRadius = r;
@@ -354,6 +356,7 @@
   Game.toggleCamera = () => {
     P.camMode = P.camMode === 'third' ? 'first' : 'third';
     UI.toast(P.camMode === 'first' ? 'Ich-Sicht' : 'Sicht hinter der Figur');
+    Game.saveSettings();
   };
 
   // ---------------------------------------------------------------------------

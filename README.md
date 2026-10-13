@@ -4,6 +4,9 @@ Ein 3D-Open-World-Spiel im Block-Stil, das direkt im Browser läuft. Du erstells
 (Körperbau wie Steve aus Minecraft), erkundest eine Insel mit Dörfern, Tempeln, Tieren und Monstern,
 baust Blöcke ab und findest versteckte Schätze.
 
+Gespielt wird in der **Ich-Perspektive** (wie in Minecraft). Mit **V** oder dem Knopf **Kamera**
+kannst du jederzeit zur Sicht hinter deine Figur wechseln, um sie laufen zu sehen.
+
 ## Spielen
 
 - **Einfach:** `index.html` im Browser öffnen (Doppelklick genügt, es wird kein Server gebraucht).
@@ -48,7 +51,7 @@ Das Spiel speichert automatisch im Browser (Figur, Welt, Inventar, gebaute Blöc
 | 1 – 9 / Mausrad | Gegenstand wählen |
 | E | Inventar und Herstellen |
 | M | Große Karte |
-| V | Kamera wechseln (hinter der Figur / Ich-Sicht) |
+| V | Ich-Sicht oder Sicht hinter der Figur |
 | Q | Gegenstand fallen lassen |
 | Esc | Menü (Wetter, Tageszeit, Monster, Sichtweite, Ton …) |
 

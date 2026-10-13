@@ -100,7 +100,8 @@
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), hw: 0.3, h: 1.8,
     yaw: 0, pitch: -0.2, bodyYaw: 0, health: 20, maxHealth: 20, alive: true,
     inv: new I.Inventory(36), sel: 0, onGround: false, inWater: false, headInWater: false,
-    camMode: 'third', camDist: 4, shake: 0, hurtT: 0, lastHurt: 99, regenT: 0,
+    camMode: 'first', camDist: 4, shake: 0, hurtT: 0, lastHurt: 99, regenT: 0,
+    hurtRoll: 0, landDip: 0, swayX: 0, swayY: 0, lastYaw: 0, lastPitch: 0, deathT: 0,
     mining: null, swingT: -1, attackCd: 0, useCd: 0, cactusCd: 0, fallY: 0,
     spawn: null, target: null, warned: null, stepT: 0,
   });
@@ -188,6 +189,8 @@
       P.vel.y = Math.max(P.vel.y, 4);
     }
     P.shake = Math.max(P.shake, 0.25);
+    // Kamera kippt kurz zur Seite, aus der der Treffer kam
+    P.hurtRoll = fromX !== undefined ? (Math.sign((P.pos.x - fromX) * Math.cos(P.yaw) - (P.pos.z - fromZ) * Math.sin(P.yaw)) || 1) * 0.12 : 0.1;
     if (P.health <= 0) P.die(cause);
     G.UI.updateHearts();
   };
@@ -195,6 +198,7 @@
   P.die = (cause) => {
     P.health = 0;
     P.alive = false;
+    P.deathT = 0;
     P.mining = null;
     G.Game.stats.deaths = (G.Game.stats.deaths || 0) + 1;
     G.UI.showDeath(cause);
@@ -483,6 +487,7 @@
       const fd = P.fallY - P.pos.y;
       if (fd > 3.4) P.hurt(Math.floor(fd - 3), undefined, undefined, 'Sturz');
       if (fd > 1) playStep(1.2);
+      if (fd > 0.6) P.landDip = Math.min(0.22, 0.05 + fd * 0.035);
       P.fallY = P.pos.y;
     }
     // Kaktus pikst
@@ -572,16 +577,41 @@
     updateDirs();
     const eye = eyePos();
     const a = P.model.anim;
+    let roll = 0;
+    P.hurtRoll *= Math.max(0, 1 - dt * 5);
+    P.landDip = Math.max(0, P.landDip - dt * 0.9);
     if (P.camMode === 'first') {
-      const bob = P.onGround ? Math.sin(a.phase * 2) * 0.04 * a.amp : 0;
-      cam.position.set(eye.x + right.x * Math.sin(a.phase) * 0.03 * a.amp, eye.y + bob, eye.z + right.z * Math.sin(a.phase) * 0.03 * a.amp);
+      // Kopfbewegung im Schritt-Takt: auf und ab, leicht seitlich und etwas Neigung
+      const run = a.run || 0;
+      const k = a.amp * (P.onGround ? 1 : 0.3);
+      const bob = Math.abs(Math.cos(a.phase)) * 0.055 * k - 0.03 * k;
+      const side = Math.sin(a.phase) * 0.028 * k;
+      roll = Math.sin(a.phase) * (0.008 + 0.01 * run) * k + P.hurtRoll;
+      let ey = eye.y + bob - P.landDip;
+      if (!P.alive) {
+        // Beim Tod sinkt der Blick zu Boden und kippt zur Seite
+        P.deathT += dt;
+        const d = Math.min(1, P.deathT * 2);
+        ey = U.lerp(eye.y, P.pos.y + 0.3, d);
+        roll += d * 0.7;
+      }
+      cam.position.set(eye.x + right.x * side, ey, eye.z + right.z * side);
       P.model.root.visible = false;
       P.nameTag.visible = false;
       P.fpArm.visible = P.alive;
       P.fpItem.visible = P.alive;
+      // Hand bleibt beim schnellen Umsehen etwas zurück
+      const dYaw = U.angleDiff(P.lastYaw, P.yaw), dPitch = P.pitch - P.lastPitch;
+      P.lastYaw = P.yaw;
+      P.lastPitch = P.pitch;
+      P.swayX = U.clamp(P.swayX + dYaw * 0.35, -0.12, 0.12);
+      P.swayY = U.clamp(P.swayY - dPitch * 0.35, -0.1, 0.1);
+      P.swayX *= Math.max(0, 1 - dt * 8);
+      P.swayY *= Math.max(0, 1 - dt * 8);
       // Arm kommt von rechts unten und zeigt nach vorne; beim Abbauen schwingt er
       const sw = P.swingT >= 0 ? Math.sin(P.swingT * Math.PI) : 0;
-      const bx = Math.sin(a.phase) * 0.018 * a.amp, by = -Math.abs(Math.cos(a.phase)) * 0.025 * a.amp;
+      const breathe = Math.sin(a.t * 1.6) * 0.006 * (1 - a.amp);
+      const bx = Math.sin(a.phase) * 0.02 * k + P.swayX, by = -Math.abs(Math.cos(a.phase)) * 0.03 * k + breathe + P.swayY - P.landDip * 0.4;
       P.fpArm.rotation.set(1.85 - sw * 0.75, 0.28 + sw * 0.15, 0);
       P.fpArm.position.set(0.36 + bx - sw * 0.04, -0.5 + by - sw * 0.06, -0.3 - sw * 0.1);
       P.fpItem.position.set(0.3 + bx - sw * 0.1, -0.3 + by - sw * 0.18, -0.72 - sw * 0.08);
@@ -646,6 +676,7 @@
       cam.position.y += (Math.random() - 0.5) * P.shake * 0.3;
     }
     cam.lookAt(cam.position.x + fwd.x, cam.position.y + fwd.y, cam.position.z + fwd.z);
+    if (roll) cam.rotateZ(roll);
     const wantFov = P.sprinting ? 78 : 70;
     if (Math.abs(cam.fov - wantFov) > 0.1) {
       cam.fov += (wantFov - cam.fov) * Math.min(1, dt * 6);
@@ -657,7 +688,7 @@
 
   P.serialize = () => ({
     x: P.pos.x, y: P.pos.y, z: P.pos.z, yaw: P.yaw, pitch: P.pitch, health: P.health,
-    inv: P.inv.serialize(), sel: P.sel, spawn: P.spawn, cam: P.camMode,
+    inv: P.inv.serialize(), sel: P.sel, spawn: P.spawn,
   });
   P.load = (o) => {
     P.pos.set(o.x, o.y, o.z);
@@ -667,7 +698,7 @@
     P.inv.load(o.inv);
     P.sel = o.sel || 0;
     P.spawn = o.spawn || null;
-    P.camMode = o.cam === 'first' ? 'first' : 'third';
+    // Kamera-Einstellung kommt aus den Einstellungen (Standard: Ich-Sicht)
     P.fallY = P.pos.y;
   };
 })();
