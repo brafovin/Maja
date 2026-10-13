@@ -24,11 +24,14 @@ Das Spiel speichert automatisch im Browser (Figur, Welt, Inventar, gebaute Blöc
   Die Schritte sind an die echte Geschwindigkeit gekoppelt, damit die Füße nicht rutschen.
 - **Offene Welt:** eine Insel mit Wiesen, Wäldern, Wüste, Dschungel, Schneeland, Bergen, Höhlen und Erzen.
 - **Häuser und Dörfer** mit Betten, Werkbänken und Truhen voller nützlicher Dinge.
+- **3D-Betten:** zwei Blöcke lang, mit Holzrahmen, Beinen, Kopf- und Fußteil, Matratze, Kissen und
+  roter Decke. Ein Bett zeigt in die Richtung, in die du beim Aufstellen schaust.
 - **Tempel mit verstecktem Gold:**
   - Im **Wüstentempel** liegt unter dem blauen Stein in der Mitte eine Geheimkammer.
   - Im **Dschungeltempel** ist der Schatz hinter einer Wand aus Steinziegeln verborgen.
 - **Tiere:** Schweine, Kühe, Schafe und Hühner.
-- **Monster:** Zombies, Skelette (schießen Pfeile), Spinnen, Creeper (explodieren) und Mumien,
+- **Monster:** Zombies, Skelette (sehen aus wie echte Skelette mit Schädel, Rippen und Knochen,
+  klappern mit dem Kiefer und schießen mit dem Bogen), Spinnen, Creeper (explodieren) und Mumien,
   die die Tempel bewachen. Sie greifen an und du verlierst Herzen. Monster lassen sich im Menü ausschalten.
 - **Werkzeuge:** Spitzhacken, Äxte, Schaufeln und Schwerter aus Holz, Stein, Eisen und Diamant.
   Gold- und Diamanterz braucht eine Eisenspitzhacke, Eisenerz eine Steinspitzhacke.

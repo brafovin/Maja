@@ -195,6 +195,15 @@
     [IT.STRING]: () => pixelIcon((put) => {
       for (let x = 2; x < 14; x++) put(x, Math.round(8 + Math.sin(x * 0.9) * 2.5), [236, 236, 236]);
     }),
+    [ID.BED]: () => pixelIcon((put) => {
+      const wood = [120, 84, 46], dark = [80, 54, 28], red = [196, 38, 42], redD = [150, 26, 30], white = [240, 240, 236];
+      for (let y = 3; y <= 13; y++) { put(1, y, dark); put(2, y, wood); }
+      for (let y = 7; y <= 13; y++) { put(13, y, wood); put(14, y, dark); }
+      for (let x = 1; x <= 14; x++) { put(x, 10, wood); put(x, 11, dark); }
+      for (let x = 3; x <= 12; x++) for (let y = 7; y <= 9; y++) put(x, y, y === 7 ? red : x > 5 ? (y === 9 ? redD : red) : white);
+      for (let x = 3; x <= 5; x++) put(x, 6, white);
+      put(1, 12, dark); put(1, 13, dark); put(14, 12, dark); put(14, 13, dark);
+    }),
     [IT.BUCKET]: () => bucket(false),
     [IT.WATER_BUCKET]: () => bucket(true),
     [IT.GUNPOWDER]: () => pixelIcon((put) => {
@@ -289,9 +298,9 @@
   for (const id in defs) {
     const d = defs[id];
     let c;
-    if (d.kind === 'block') c = blockIcon(B.defs[d.block]);
+    if (itemIcons[id]) c = itemIcons[id]();
+    else if (d.kind === 'block') c = blockIcon(B.defs[d.block]);
     else if (d.kind === 'tool') c = toolIcon(d.tool, d.mat);
-    else if (itemIcons[id]) c = itemIcons[id]();
     else c = pixelIcon(() => {});
     iconCanvases[id] = c;
   }

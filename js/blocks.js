@@ -592,6 +592,8 @@
     BED: 42, BOOKSHELF: 43, CRAFTING: 44, SPRUCE_PLANKS: 45,
     // Fließendes Wasser: Stufe 1..7 (je weiter weg von der Quelle, desto flacher) und fallendes Wasser
     WATER_1: 46, WATER_2: 47, WATER_3: 48, WATER_4: 49, WATER_5: 50, WATER_6: 51, WATER_7: 52, WATER_FALL: 53,
+    // Bett aus zwei Blöcken: Kopf- und Fußteil, je 4 Richtungen (0:+X 1:-X 2:+Z 3:-Z, vom Fuß zum Kopf)
+    BED_HEAD: 54, BED_FOOT: 58,
   });
 
   const defs = (B.defs = []);
@@ -660,7 +662,54 @@
   def(ID.FLOWER_YELLOW, 'Löwenzahn', { tex: 'flower_yellow', solid: false, opaque: false, render: 'cross', hardness: 0, map: [240, 210, 40] });
   def(ID.TALL_GRASS, 'Gras', { tex: 'tall_grass', solid: false, opaque: false, render: 'cross', hardness: 0, tint: 'biome', drop: null, replaceable: true, map: [96, 160, 58] });
   def(ID.DEAD_BUSH, 'Toter Busch', { tex: 'dead_bush', solid: false, opaque: false, render: 'cross', hardness: 0, drop: 'stick', replaceable: true, map: [122, 82, 40] });
-  def(ID.BED, 'Bett', { tex: { top: 'bed_top', side: 'bed_side', bottom: 'planks', icon: 'bed_top' }, opaque: false, render: 'box', box: [0, 0, 0, 16, 9, 16], hardness: 0.3, interact: 'bed', map: [178, 32, 34] });
+  // 3D-Bett: Teile in Pixeln (0..16) für ein Bett, dessen Kopfende nach Norden (-Z) zeigt
+  const RED = [0.8, 0.16, 0.18], WHITE = [0.98, 0.98, 0.96];
+  const BED_HEAD_PARTS = [
+    { box: [0, 0, 0, 3, 3, 3], tile: 'spruce_planks' },
+    { box: [13, 0, 0, 16, 3, 3], tile: 'spruce_planks' },
+    { box: [0, 0, 0, 2, 15, 2], tile: 'spruce_planks' },
+    { box: [14, 0, 0, 16, 15, 2], tile: 'spruce_planks' },
+    { box: [2, 4, 0, 14, 13, 2], tile: 'planks' },
+    { box: [2, 13, 0, 14, 14, 2], tile: 'spruce_planks' },
+    { box: [0, 3, 2, 16, 6, 16], tile: 'planks' },
+    { box: [1, 6, 2, 15, 9, 16], tile: 'wool', tint: WHITE },
+    { box: [2, 9, 3, 14, 11, 7], tile: 'wool', tint: [1, 1, 1] },
+    { box: [0, 8, 8, 16, 10, 10], tile: 'wool', tint: WHITE },
+    { box: [0, 7, 10, 16, 10, 16], tile: 'wool', tint: RED },
+  ];
+  const BED_FOOT_PARTS = [
+    { box: [0, 0, 13, 3, 3, 16], tile: 'spruce_planks' },
+    { box: [13, 0, 13, 16, 3, 16], tile: 'spruce_planks' },
+    { box: [0, 0, 14, 2, 11, 16], tile: 'spruce_planks' },
+    { box: [14, 0, 14, 16, 11, 16], tile: 'spruce_planks' },
+    { box: [2, 4, 14, 14, 9, 16], tile: 'planks' },
+    { box: [0, 3, 0, 16, 6, 14], tile: 'planks' },
+    { box: [1, 6, 0, 15, 9, 14], tile: 'wool', tint: WHITE },
+    { box: [0, 7, 0, 16, 10, 14], tile: 'wool', tint: RED },
+  ];
+  // Teile um die Blockmitte drehen
+  function rotBox(b, dir) {
+    switch (dir) {
+      case 0: return [16 - b[5], b[1], b[0], 16 - b[2], b[4], b[3]];
+      case 1: return [b[2], b[1], 16 - b[3], b[5], b[4], 16 - b[0]];
+      case 2: return [16 - b[3], b[1], 16 - b[5], 16 - b[0], b[4], 16 - b[2]];
+      default: return b.slice();
+    }
+  }
+  const modelParts = (parts, dir) =>
+    parts.map((p) => ({ box: rotBox(p.box, dir), tile: tiles[p.tile], tint: p.tint || [1, 1, 1] }));
+  B.BED_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  def(ID.BED, 'Bett', { tex: { top: 'bed_top', side: 'bed_side', bottom: 'planks' }, opaque: false, render: 'model', hardness: 0.3, interact: 'bed', map: [178, 32, 34] });
+  defs[ID.BED].modelParts = modelParts(BED_HEAD_PARTS, 3);
+  for (let dir = 0; dir < 4; dir++) {
+    def(ID.BED_HEAD + dir, 'Bett', { tex: 'wool', opaque: false, render: 'model', hardness: 0.3, interact: 'bed', placeable: false, drop: ID.BED, map: [230, 230, 226] });
+    defs[ID.BED_HEAD + dir].modelParts = modelParts(BED_HEAD_PARTS, dir);
+    defs[ID.BED_HEAD + dir].bed = { head: true, dir };
+    def(ID.BED_FOOT + dir, 'Bett', { tex: 'wool', opaque: false, render: 'model', hardness: 0.3, interact: 'bed', placeable: false, drop: null, map: [178, 32, 34] });
+    defs[ID.BED_FOOT + dir].modelParts = modelParts(BED_FOOT_PARTS, dir);
+    defs[ID.BED_FOOT + dir].bed = { head: false, dir };
+  }
   def(ID.BOOKSHELF, 'Bücherregal', { tex: { top: 'planks', side: 'bookshelf', bottom: 'planks' }, hardness: 1.5, tool: 'axe', map: [140, 100, 70] });
   def(ID.CRAFTING, 'Werkbank', { tex: { top: 'crafting_top', side: 'crafting_side', bottom: 'planks' }, hardness: 2.5, tool: 'axe', interact: 'craft', map: [150, 110, 60] });
   def(ID.SPRUCE_PLANKS, 'Dunkle Bretter', { tex: 'spruce_planks', hardness: 2, tool: 'axe', map: [112, 80, 46] });

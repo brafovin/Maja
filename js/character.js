@@ -201,7 +201,7 @@
     neck.add(head);
 
     const m = {
-      root, pelvis, torso, neck, head, lw, look,
+      root, pelvis, torso, neck, head, lw, look, skeleton: !!opts.skeleton,
       anim: { phase: 0, amp: 0, run: 0, air: 0, swim: 0, t: Math.random() * 10, swingT: -1, lastStep: 0, hold: 0, holdL: 0 },
       meshes: {},
     };
@@ -263,6 +263,10 @@
       else disposeMesh(v);
     }
     m.meshes = {};
+    if (m.skeleton) {
+      applySkeleton(m);
+      return;
+    }
     const lw = m.lw;
     const seed = 3;
     const headMats = C.boxMats(8, 8, 8, headFace(look), seed);
@@ -312,10 +316,137 @@
     });
   };
 
+  // ---------------------------------------------------------------------------
+  // Skelett: echte Knochen statt Kästen (gleiches Gelenk-Gerüst wie die Figur)
+  // ---------------------------------------------------------------------------
+  // Mehrere Quader [b, h, t, x, y, z] (in Pixeln) zu einer Geometrie zusammenfassen
+  function mergeBoxes(list) {
+    const pos = [], nor = [], uv = [], ind = [];
+    let off = 0;
+    for (const [w, h, d, x, y, z] of list) {
+      const g = new THREE.BoxGeometry(w * P, h * P, d * P);
+      g.translate(x * P, y * P, z * P);
+      pos.push(...g.attributes.position.array);
+      nor.push(...g.attributes.normal.array);
+      uv.push(...g.attributes.uv.array);
+      for (const i of g.index.array) ind.push(i + off);
+      off += g.attributes.position.count;
+      g.dispose();
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(ind);
+    geo.computeBoundingSphere();
+    return geo;
+  }
+  C.mergeBoxes = mergeBoxes;
+
+  const BONE = [224, 218, 198], BONE_D = [186, 180, 160], HOLE = [26, 22, 20];
+  function skullFace(face, x, y) {
+    if (face === 'front') {
+      if ((y === 2 || y === 3) && (x === 1 || x === 2 || x === 5 || x === 6)) return HOLE; // Augenhöhlen
+      if (y === 1 && (x >= 1 && x <= 2 || x >= 5 && x <= 6)) return BONE_D; // Brauenbogen
+      if (y === 4 && (x === 3 || x === 4)) return HOLE; // Nasenloch
+      if (y === 5 && (x === 3 || x === 4)) return BONE_D;
+      if (y === 6) return x === 0 || x === 7 ? BONE_D : x % 2 ? [242, 238, 222, 1] : HOLE; // obere Zähne
+      return BONE;
+    }
+    if (face === 'bottom') return HOLE;
+    if (face === 'left' || face === 'right') return y >= 2 && y <= 4 && (x === 2 || x === 5) ? BONE_D : BONE;
+    if (face === 'back' && y >= 5) return BONE_D;
+    return BONE;
+  }
+  function jawFace(face, x, y) {
+    if (face === 'top') return HOLE;
+    if (face === 'front' && y === 0) return x === 0 || x === 5 ? BONE_D : x % 2 ? HOLE : [242, 238, 222, 1]; // untere Zähne
+    return y === 1 ? BONE_D : BONE;
+  }
+
+  function applySkeleton(m) {
+    const boneTex = C.makeTex(8, 8, (x, y, r) => {
+      const v = 0.9 + r() * 0.12;
+      return [BONE[0] * v, BONE[1] * v, BONE[2] * v, 1];
+    }, 77);
+    const bone = C.mat(boneTex);
+    m.meshes.limbs = [];
+    const add = (parent, list) => {
+      const mesh = new THREE.Mesh(mergeBoxes(list), bone);
+      parent.add(mesh);
+      m.meshes.limbs.push(mesh);
+      return mesh;
+    };
+    // Schädel und beweglicher Unterkiefer
+    m.meshes.head = C.box(8, 7, 8, C.boxMats(8, 7, 8, skullFace, 81), 0, 4.6, 0.2);
+    m.head.add(m.meshes.head);
+    const jawPivot = new THREE.Group();
+    jawPivot.position.set(0, 1.3 * P, -2.2 * P);
+    m.head.add(jawPivot);
+    m.meshes.jaw = C.box(6, 1.6, 6, C.boxMats(6, 2, 6, jawFace, 82), 0, -0.6, 2.6);
+    jawPivot.add(m.meshes.jaw);
+    m.jaw = jawPivot;
+    // Wirbelsäule, Schlüsselbein, Brustbein und Rippen
+    const torso = [
+      [2, 12.6, 2, 0, 6.3, -1.3],
+      [10.6, 1.2, 1.4, 0, 11.4, 0],
+      [1.4, 6.2, 1, 0, 8.1, 1.8],
+      [2, 1.8, 2, 0, 13, -0.5],
+    ];
+    for (let i = 0; i < 5; i++) {
+      const yr = 10.1 - i * 1.85;
+      const w = i < 3 ? 7.2 : 6;
+      torso.push([w, 0.9, 0.9, 0, yr, 1.7], [0.9, 0.9, 3.4, w / 2, yr, 0.1], [0.9, 0.9, 3.4, -w / 2, yr, 0.1]);
+    }
+    add(m.torso, torso);
+    // Becken
+    add(m.pelvis, [[7, 2.4, 3, 0, 0.4, -0.2], [2, 1.6, 2, 0, 1.8, -1.1], [1.6, 1, 1.6, 2.6, -0.8, 0.4], [1.6, 1, 1.6, -2.6, -0.8, 0.4]]);
+    // Arme: Oberarmknochen, Elle und Speiche, Hand mit Fingern
+    for (const a of m.arms) {
+      add(a.sh, [[2.4, 2, 2.4, 0, 1, 0], [1.4, 5, 1.4, 0, -1.5, 0], [2, 1.4, 2, 0, -3.9, 0]]);
+      add(a.elbow, [
+        [0.8, 5.4, 0.8, -0.45, -2.8, 0], [0.8, 5.4, 0.8, 0.45, -2.8, 0],
+        [2, 1.6, 1.2, 0, -5.7, 0],
+        [0.5, 1.6, 0.5, -0.65, -7.1, 0.2], [0.5, 1.8, 0.5, 0, -7.2, 0.2], [0.5, 1.6, 0.5, 0.65, -7.1, 0.2],
+      ]);
+    }
+    // Beine: Oberschenkelknochen mit Knie, Schien- und Wadenbein, Fuß
+    for (const l of m.legs) {
+      add(l.hip, [[2.4, 2, 2.4, 0, -0.6, 0], [1.8, 5, 1.8, 0, -3, 0], [2.4, 1.6, 2.4, 0, -5.6, 0]]);
+      add(l.knee, [[1.2, 5.2, 1.2, -0.35, -3, 0], [0.7, 5.2, 0.7, 0.6, -3, -0.2], [2.2, 1, 3.8, 0, -5.5, 0.9]]);
+    }
+    m.materials = [];
+    m.root.traverse((o) => {
+      if (o.isMesh && o.material && !o.userData.isItem && !m.materials.includes(o.material)) m.materials.push(o.material);
+    });
+  }
+
+  // Bogen (für Skelette)
+  C.bowModel = () => {
+    const wood = new THREE.MeshLambertMaterial({ color: 0x7a5530 });
+    wood.userData.base = new THREE.Color(0x7a5530);
+    const arc = [];
+    for (let i = -6; i <= 6; i++) {
+      const z = (1 - (i / 6.4) ** 2) * 3.4 - 3.4;
+      arc.push([0.9, 1.3, 0.9, 0, i * 1.05, z]);
+    }
+    arc.push([1.4, 2.6, 1.4, 0, 0, 0]);
+    // Spitzen leicht nach hinten gebogen
+    arc.push([0.8, 1, 0.8, 0, 6.9, -3.9], [0.8, 1, 0.8, 0, -6.9, -3.9]);
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(mergeBoxes(arc), wood));
+    const string = new THREE.MeshLambertMaterial({ color: 0xf2efe6 });
+    string.userData.base = new THREE.Color(0xf2efe6);
+    g.add(new THREE.Mesh(mergeBoxes([[0.35, 13.6, 0.35, 0, 0, -3.8]]), string));
+    return g;
+  };
+
   // Helligkeit (Licht an der Position) und rotes Aufblinken bei Treffer
   C.setTint = (m, bright, hurt) => {
     for (const mt of m.materials) {
-      mt.color.setRGB(bright, bright * (1 - hurt * 0.55), bright * (1 - hurt * 0.55));
+      const c = mt.userData.base;
+      const r = c ? c.r : 1, g = c ? c.g : 1, bl = c ? c.b : 1;
+      mt.color.setRGB(r * bright, g * bright * (1 - hurt * 0.55), bl * bright * (1 - hurt * 0.55));
       if (mt.emissive) mt.emissive.setRGB(hurt * 0.45, 0, 0);
     }
   };

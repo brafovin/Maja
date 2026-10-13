@@ -688,7 +688,10 @@
       }
     }
     // Einrichtung
-    S(1, g + 1, 1, ID.BED);
+    // Bett mit dem Kopfende an der Rückwand
+    const bedDir = [3, 2, 1, 0][rot];
+    S(1, g + 1, 1, ID.BED_HEAD + bedDir);
+    S(1, g + 1, 2, ID.BED_FOOT + bedDir);
     const [chx, chz] = map(w - 2, 1);
     placeChest(chx, g + 1, chz, 'house', rng);
     if (w >= 7) S(w - 3, g + 1, 1, ID.CRAFTING);
@@ -1450,6 +1453,49 @@
     }
   }
 
+  // Block aus mehreren Quadern (z.B. Bett mit Beinen, Matratze, Kissen und Decke)
+  function emitModel(mb, x, y, z, pi, d) {
+    const l = pl[pi];
+    const ls = l >> 4, lb = l & 15;
+    for (const part of d.modelParts) {
+      const b = part.box;
+      const t = B.tileUV(part.tile);
+      const tint = part.tint;
+      for (let fi = 0; fi < 6; fi++) {
+        const f = FACES[fi];
+        const onEdge = (fi === 0 && b[3] === 16) || (fi === 1 && b[0] === 0) || (fi === 2 && b[4] === 16) ||
+          (fi === 3 && b[1] === 0) || (fi === 4 && b[5] === 16) || (fi === 5 && b[2] === 0);
+        if (onEdge && OPAQUE[pb[pi + f.o]]) continue;
+        const nl = onEdge ? pl[pi + f.o] : l;
+        const fs = Math.max(ls, nl >> 4), fb = Math.max(lb, nl & 15);
+        for (let k = 0; k < 4; k++) {
+          const c = f.c[k];
+          const px = c[0] ? b[3] : b[0], py = c[1] ? b[4] : b[1], pz = c[2] ? b[5] : b[2];
+          qp[k * 3] = x * 16 + px;
+          qp[k * 3 + 1] = y * 16 + py;
+          qp[k * 3 + 2] = z * 16 + pz;
+          let u, v;
+          switch (fi) {
+            case 0: u = 16 - pz; v = py; break;
+            case 1: u = pz; v = py; break;
+            case 2: u = px; v = 16 - pz; break;
+            case 3: u = px; v = pz; break;
+            case 4: u = px; v = py; break;
+            default: u = 16 - px; v = py;
+          }
+          quv[k * 2] = U.lerp(t[0] + EPS, t[2] - EPS, U.clamp(u / 16, 0, 1));
+          quv[k * 2 + 1] = U.lerp(t[1] + EPS, t[3] - EPS, U.clamp(v / 16, 0, 1));
+          qc[k * 3] = f.s * tint[0];
+          qc[k * 3 + 1] = f.s * tint[1];
+          qc[k * 3 + 2] = f.s * tint[2];
+          ql[k * 2] = fs;
+          ql[k * 2 + 1] = fb;
+        }
+        mb.quad(qp, quv, qc, ql, false);
+      }
+    }
+  }
+
   function emitCross(mb, x, y, z, pi, d, tint) {
     const t = B.tileUV(d.faceTiles[0]);
     const l = pl[pi];
@@ -1521,6 +1567,8 @@
               tint = tintTmp;
             }
             emitCross(mbSolid, lx, y, lz, pi, d, tint);
+          } else if (r === 'model') {
+            emitModel(mbSolid, lx, y, lz, pi, d);
           } else if (r === 'box' || r === 'torch') {
             let front = -1;
             if (d.frontTile != null) {

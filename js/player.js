@@ -297,6 +297,17 @@
     }
     G.Ent.blockBreak(x, y, z, id);
     World.setBlock(x, y, z, ID.AIR);
+    // Bett: die andere Hälfte verschwindet mit, es fällt genau ein Bett heraus
+    const bed = B.defs[id].bed;
+    if (bed) {
+      const [dx, dz] = B.BED_DIRS[bed.dir];
+      const ox = bed.head ? x - dx : x + dx, oz = bed.head ? z - dz : z + dz;
+      if (B.defs[World.get(ox, y, oz)].bed) {
+        G.Ent.blockBreak(ox, y, oz, World.get(ox, y, oz));
+        World.setBlock(ox, y, oz, ID.AIR);
+      }
+      if (!bed.head) G.Ent.dropItem(ID.BED, 1, x + 0.5, y + 0.4, z + 0.5);
+    }
     // Dinge obendrauf fallen mit herunter
     const above = World.get(x, y + 1, z);
     const ad = B.defs[above];
@@ -447,6 +458,25 @@
       if (!World.inside(x, z) || y < 1 || y >= World.H - 1) return false;
       const cur = World.get(x, y, z);
       if (cur !== ID.AIR && !B.ISWATER[cur] && !B.defs[cur].replaceable) return false;
+      if (d.block === ID.BED) {
+        // Bett: Fußende hier, Kopfende einen Block weiter in Blickrichtung
+        const dir = Math.abs(fwd.x) > Math.abs(fwd.z) ? (fwd.x > 0 ? 0 : 1) : fwd.z > 0 ? 2 : 3;
+        const [dx, dz] = B.BED_DIRS[dir];
+        const hx = x + dx, hz = z + dz;
+        const hc = World.get(hx, y, hz);
+        if (!World.inside(hx, hz) || (hc !== ID.AIR && !B.ISWATER[hc] && !B.defs[hc].replaceable)) {
+          G.UI.toast('Für das Bett ist hier nicht genug Platz (es ist zwei Blöcke lang).');
+          return false;
+        }
+        if (overlapsEntity(x, y, z) || overlapsEntity(hx, y, hz)) return false;
+        World.setBlocks([[x, y, z, ID.BED_FOOT + dir], [hx, y, hz, ID.BED_HEAD + dir]]);
+        s.n--;
+        if (s.n <= 0) clear();
+        G.Audio.play('place');
+        G.UI.inventoryChanged();
+        P.swingT = 0;
+        return true;
+      }
       const nd = B.defs[d.block];
       if (nd.render === 'torch' || nd.render === 'cross') {
         const below = World.get(x, y - 1, z);

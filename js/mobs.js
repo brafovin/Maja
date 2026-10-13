@@ -273,9 +273,16 @@
       this.fallY = y;
       if (d.humanoid) {
         const look = LOOKS[type];
-        this.model = C.createHumanoid(look, { limbW: type === 'skeleton' ? 2 : 4 });
+        this.model = C.createHumanoid(look, { limbW: type === 'skeleton' ? 2 : 4, skeleton: type === 'skeleton' });
         this.model.kind = 'humanoid';
-        if (type === 'skeleton') C.setHeld(this.model, null);
+        if (type === 'skeleton') {
+          // Bogen in der linken Hand
+          const bow = C.bowModel();
+          bow.rotation.x = Math.PI / 2;
+          bow.position.set(0, -0.06, 0.02);
+          this.model.leftArm.hand.add(bow);
+          bow.traverse((o) => { if (o.isMesh) this.model.materials.push(o.material); });
+        }
       } else {
         this.model = BUILD[type]();
         collectMaterials(this.model);
@@ -525,6 +532,8 @@
           holding: this.type === 'skeleton', dead: this.dead,
         });
         if (this.type === 'skeleton') {
+          // Unterkiefer klappert, wenn es dich sieht
+          m.jaw.rotation.x = near && !this.dead ? 0.12 + Math.max(0, Math.sin(m.anim.t * 9)) * 0.22 : 0.04 + Math.sin(m.anim.t * 1.3) * 0.03;
           // Bogen-Haltung: beide Arme nach vorne
           m.leftArm.sh.rotation.x = -1.4;
           m.rightArm.sh.rotation.x = -1.4 - (this.swing >= 0 ? 0.3 * Math.sin(this.swing * Math.PI) : 0);
