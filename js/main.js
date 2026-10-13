@@ -228,6 +228,7 @@
       if (P.name !== c.name) { P.name = c.name; P.makeNameTag(c.name); }
     }
     P.inv = new G.Items.Inventory(36);
+    P.offSlots[0] = null;
     if (save && save.player) {
       P.load(save.player);
       if (!G.Phys.free(P.pos.x, P.pos.y, P.pos.z, P.hw, P.h)) {
@@ -245,7 +246,8 @@
       P.inv.add(IT.WOOD_PICK, 1);
       P.inv.add(IT.WOOD_SWORD, 1);
       P.inv.add(IT.WOOD_AXE, 1);
-      P.inv.add(B.ID.TORCH, 8);
+      // Fackeln gleich in der linken Hand: sie leuchten, wenn es dunkel wird
+      P.offSlots[0] = G.Items.makeStack(B.ID.TORCH, 8);
       P.inv.add(IT.APPLE, 3);
       // zur Dorfmitte schauen
       const v = World.structures.find((s2) => s2.type === 'village');
@@ -346,6 +348,8 @@
     } else if (code === 'KeyV' || code === 'F5') {
       Game.toggleCamera();
       e.preventDefault();
+    } else if (code === 'KeyF') {
+      P.swapHands();
     } else if (code === 'KeyQ') {
       const s = P.held();
       if (s && P.alive) {
@@ -396,10 +400,18 @@
   // Entdeckungen
   // ---------------------------------------------------------------------------
   let discoverT = 0;
+  let torchTip = false;
   function checkDiscoveries(dt) {
     discoverT -= dt;
     if (discoverT > 0) return;
     discoverT = 0.5;
+    // Tipp, sobald es dunkel wird: Fackel in die linke Hand nehmen
+    const off = P.offSlots[0];
+    if (!torchTip && Sky.daylight < 0.3 && !(off && off.id === B.ID.TORCH) && P.inv.count(B.ID.TORCH) > 0) {
+      torchTip = true;
+      UI.toast(touch ? 'Tipp: Wähle die Fackeln in der Leiste und tippe auf das Feld „L“ – dann hältst du sie in der linken Hand und hast Licht.'
+        : 'Tipp: Wähle die Fackeln und drücke F – dann hältst du sie in der linken Hand und hast Licht.', 'gold');
+    }
     for (const s of World.structures) {
       if (s.discovered) continue;
       if (Math.hypot(s.x - P.pos.x, s.z - P.pos.z) < s.r) {

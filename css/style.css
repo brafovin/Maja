@@ -272,7 +272,16 @@ img { image-rendering: pixelated; }
 #hearts img { width: calc(var(--slot-size) * 0.4); height: calc(var(--slot-size) * 0.4); }
 #hearts.low img:nth-child(odd) { animation: shake 0.35s infinite; }
 @keyframes shake { 50% { transform: translateY(-2px); } }
+#hands { display: flex; align-items: flex-end; gap: 10px; }
 #hotbar { display: flex; gap: 2px; background: rgba(10, 9, 16, 0.6); padding: 3px; border: 3px solid var(--edge); pointer-events: auto; }
+/* linke Hand: eigenes Feld links neben der Schnellleiste */
+#offhand { pointer-events: auto; outline: 3px solid var(--edge); outline-offset: 0; background: rgba(45, 43, 64, 0.85); }
+#offhand:empty::after, .off-row .slot:empty::after {
+  content: 'L'; font-family: var(--font-data); font-size: calc(var(--slot-size) * 0.5); color: rgba(255, 255, 255, 0.22);
+}
+.off-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 0.9rem; color: var(--ink-dim); }
+.inv-grid.one { grid-template-columns: var(--slot-size); }
+body.touch { --slot-size: clamp(30px, 8.3vw, 46px); }
 
 .slot {
   position: relative;

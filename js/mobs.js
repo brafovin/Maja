@@ -719,7 +719,7 @@
     const surf = groundSpot(x, z);
     const underground = player.pos.y < World.heightAt(px, pz) - 6;
     if (!underground && surf && night) {
-      const L = World.lightAt(surf.x, surf.y, surf.z);
+      const L = World.staticLightAt(surf.x, surf.y, surf.z);
       if (L.block < 6 && World.isReserved(x, z) !== 2) spot = surf;
     } else {
       // Höhle: Luftzelle mit Boden in der Nähe der Spielerhöhe
@@ -728,7 +728,7 @@
         const y = Math.floor(U.clamp(player.pos.y + U.randInt(-8, 8), 3, top - 3));
         if (!World.isSolid(x, y - 1, z) || World.isSolid(x, y, z) || World.isSolid(x, y + 1, z)) continue;
         if (B.ISWATER[World.get(x, y, z)]) continue;
-        const L = World.lightAt(x, y, z);
+        const L = World.staticLightAt(x, y, z);
         if (L.sky < 4 && L.block < 5) { spot = { x: x + 0.5, y, z: z + 0.5 }; break; }
       }
     }

@@ -28,7 +28,10 @@
   <div id="hud-bottom">
     <div id="held-name"></div>
     <div id="hearts"></div>
-    <div id="hotbar"></div>
+    <div id="hands">
+      <button class="slot off" id="offhand" aria-label="Linke Hand" title="Linke Hand – antippen oder F zum Tauschen"></button>
+      <div id="hotbar"></div>
+    </div>
   </div>
   <div id="fx-hurt"></div>
   <div id="fx-water"></div>
@@ -112,6 +115,7 @@
       <div class="panel-head"><h2>Inventar</h2><button class="btn small" data-close>Schließen</button></div>
       <div class="inv-grid" id="inv-main"></div>
       <div class="inv-grid hotrow" id="inv-hot"></div>
+      <div class="off-row"><div class="inv-grid one" id="inv-off"></div><span>Linke Hand – eine Fackel hier leuchtet dir den Weg.</span></div>
       <p class="hint">Antippen zum Aufnehmen und Ablegen. Mit Umschalt+Klick schnell verschieben.</p>
     </div>
     <div class="panel craft-panel">
@@ -171,6 +175,7 @@
         <dt>E</dt><dd>Inventar und Herstellen</dd>
         <dt>M</dt><dd>Große Karte</dd>
         <dt>V</dt><dd>Ich-Sicht oder Sicht hinter der Figur</dd>
+        <dt>F</dt><dd>Gegenstand in die linke Hand nehmen, z.&nbsp;B. eine Fackel als Licht</dd>
         <dt>Q</dt><dd>Gegenstand fallen lassen</dd>
         <dt>Esc</dt><dd>Menü</dd>
       </dl>

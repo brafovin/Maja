@@ -42,6 +42,10 @@ Das Spiel speichert automatisch im Browser (Figur, Welt, Inventar, gebaute Blöc
   - **Sand und Kies fallen** herunter, wenn darunter nichts mehr ist.
   - Fällst du einen Baum, **zerfällt das Laub** nach und nach.
   - Mit einem **Eimer** (aus 3 Eisenbarren, manchmal auch in Truhen) kannst du Wasser schöpfen und ausgießen.
+- **Fackel in der linken Hand:** Neben der Schnellleiste gibt es ein Feld für die linke Hand (**L**).
+  Eine Fackel dort (oder in der rechten Hand) leuchtet beim Laufen alles um dich herum aus,
+  nachts genauso wie in dunklen Höhlen. Unter Wasser geht sie aus. Neue Spiele starten schon mit
+  Fackeln in der linken Hand.
 - **Tag und Nacht** mit Sonne, Mond und Sternen. Im Bett kannst du die Nacht überspringen.
 - **Wetter:** Regen, **Gewitter mit Blitzen und Donner** und **Schnee**.
 - **Karte oben rechts** und eine große Karte der ganzen Insel (Taste **M** oder auf die Karte tippen).
@@ -61,11 +65,13 @@ Das Spiel speichert automatisch im Browser (Figur, Welt, Inventar, gebaute Blöc
 | E | Inventar und Herstellen |
 | M | Große Karte |
 | V | Ich-Sicht oder Sicht hinter der Figur |
+| F | Gegenstand in die linke Hand nehmen (z. B. eine Fackel als Licht) |
 | Q | Gegenstand fallen lassen |
 | Esc | Menü (Wetter, Tageszeit, Monster, Sichtweite, Ton …) |
 
 Auf dem Handy: links der Joystick zum Laufen, wischen zum Umsehen, rechts die Knöpfe
-**Sprung**, **Hacken** (gedrückt halten), **Bauen** und **Rennen**.
+**Sprung**, **Hacken** (gedrückt halten), **Bauen** und **Rennen**. Das Feld **L** links neben der
+Schnellleiste antippen, um den gewählten Gegenstand in die linke Hand zu nehmen.
 
 ## Technik
 

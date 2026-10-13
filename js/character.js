@@ -202,7 +202,7 @@
 
     const m = {
       root, pelvis, torso, neck, head, lw, look,
-      anim: { phase: 0, amp: 0, run: 0, air: 0, swim: 0, t: Math.random() * 10, swingT: -1, lastStep: 0, hold: 0 },
+      anim: { phase: 0, amp: 0, run: 0, air: 0, swim: 0, t: Math.random() * 10, swingT: -1, lastStep: 0, hold: 0, holdL: 0 },
       meshes: {},
     };
 
@@ -371,6 +371,80 @@
     grp.add(plane);
     return grp;
   };
+  // Fackel als kleines 3D-Modell mit leuchtender Flamme
+  let glowTex = null;
+  function getGlowTex() {
+    if (glowTex) return glowTex;
+    const c = U.canvas(64, 64);
+    const ctx = c.getContext('2d');
+    const gr = ctx.createRadialGradient(32, 32, 2, 32, 32, 31);
+    gr.addColorStop(0, 'rgba(255,230,160,1)');
+    gr.addColorStop(0.35, 'rgba(255,160,60,0.45)');
+    gr.addColorStop(1, 'rgba(255,120,30,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, 64, 64);
+    glowTex = new THREE.CanvasTexture(c);
+    return glowTex;
+  }
+  C.torchModel = (size = 1) => {
+    const g = new THREE.Group();
+    const stickMat = new THREE.MeshLambertMaterial({ color: 0x7a5530 });
+    stickMat.userData.base = new THREE.Color(0x7a5530);
+    const stick = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.06), stickMat);
+    stick.position.y = 0.1;
+    g.add(stick);
+    const flame = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.1, 0.085), new THREE.MeshBasicMaterial({ color: 0xffc54a }));
+    flame.position.y = 0.355;
+    g.add(flame);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.06, 0.045), new THREE.MeshBasicMaterial({ color: 0xfff6c8 }));
+    core.position.y = 0.37;
+    g.add(core);
+    // weicher Lichtschein um die Flamme
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTex(), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    glow.position.y = 0.37;
+    glow.scale.setScalar(0.42);
+    glow.userData.glow = true;
+    g.add(glow);
+    g.scale.setScalar(size);
+    g.userData.torch = { flame, core, glow, stick };
+    return g;
+  };
+  // Flamme flackern lassen
+  C.flickerTorch = (g, t) => {
+    const d = g && g.userData.torch;
+    if (!d) return;
+    const f = 1 + Math.sin(t * 19) * 0.07 + Math.sin(t * 31 + 1.7) * 0.05;
+    d.flame.scale.set(f, f * (1 + Math.sin(t * 23) * 0.12), f);
+    d.glow.material.opacity = 0.5 + Math.sin(t * 17) * 0.08 + Math.sin(t * 7.3) * 0.06;
+    d.glow.scale.setScalar(0.42 * (1 + Math.sin(t * 11.3) * 0.06));
+  };
+  // Gegenstand in der linken Hand (z.B. Fackel)
+  C.setHeldLeft = (m, itemId) => {
+    if (m.heldLeftId === itemId) return;
+    m.heldLeftId = itemId;
+    const hand = m.leftArm.hand;
+    if (m.heldLeftMesh) {
+      hand.remove(m.heldLeftMesh);
+      m.heldLeftMesh.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); if (!Array.isArray(o.material) && !m.heldLeftShared) o.material.dispose(); } });
+      m.heldLeftMesh = null;
+    }
+    if (!itemId) return;
+    let g;
+    if (itemId === G.B.ID.TORCH) {
+      g = C.torchModel(0.9);
+      g.rotation.x = Math.PI / 2 - 0.35;
+      g.position.set(0, -0.03, 0.03);
+    } else {
+      g = C.itemMesh(itemId);
+      if (!g) return;
+      g.rotation.x = g.userData.cube ? 0 : -0.35;
+      g.position.set(0, -0.02, 0.04);
+    }
+    g.traverse((o) => (o.userData.isItem = true));
+    hand.add(g);
+    m.heldLeftMesh = g;
+  };
+
   C.setHeld = (m, itemId) => {
     if (m.heldId === itemId) return;
     m.heldId = itemId;
@@ -381,11 +455,17 @@
       m.heldMesh = null;
     }
     if (itemId) {
-      const g = C.itemMesh(itemId);
+      const torch = itemId === G.B.ID.TORCH;
+      const g = torch ? C.torchModel(0.9) : C.itemMesh(itemId);
       if (g) {
         g.traverse((o) => (o.userData.isItem = true));
-        g.rotation.x = g.userData.cube ? 0 : -0.35;
-        g.position.set(0, -0.02, 0.04);
+        if (torch) {
+          g.rotation.x = Math.PI / 2 - 0.35;
+          g.position.set(0, -0.03, 0.03);
+        } else {
+          g.rotation.x = g.userData.cube ? 0 : -0.35;
+          g.position.set(0, -0.02, 0.04);
+        }
         hand.add(g);
         m.heldMesh = g;
       }
@@ -412,6 +492,7 @@
     a.air += ((s.onGround || s.swim ? 0 : 1) - a.air) * Math.min(1, dt * 10);
     a.swim += ((s.swim ? 1 : 0) - a.swim) * Math.min(1, dt * 5);
     a.hold += ((s.holding ? 1 : 0) - a.hold) * Math.min(1, dt * 8);
+    a.holdL = (a.holdL || 0) + ((s.holdingLeft ? 1 : 0) - (a.holdL || 0)) * Math.min(1, dt * 8);
 
     // Phase über die zurückgelegte Strecke -> Füße rutschen nicht
     let step = false;
@@ -500,6 +581,12 @@
         sx = -1.45 + 0.08 * Math.sin(a.t * 3 + (isLeft ? 0 : 1));
         sz = arm.side * 0.05;
         el = 0.05;
+      }
+      // Linke Hand: Fackel (oder anderes) nach vorne halten
+      if (isLeft && !s.zombie && a.holdL > 0.01) {
+        sx = U.lerp(sx, -0.55 - 0.08 * A * Math.sin(p), a.holdL);
+        el = U.lerp(el, 0.8, a.holdL);
+        sz = U.lerp(sz, 0.1, a.holdL);
       }
       // Rechte Hand: Gegenstand halten / zuschlagen
       if (!isLeft && !s.zombie) {

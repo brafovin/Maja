@@ -58,6 +58,11 @@
       });
       hb.appendChild(s);
     }
+    $('offhand').addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      G.Player.swapHands();
+    });
     const hearts = $('hearts');
     for (let i = 0; i < 10; i++) hearts.appendChild(document.createElement('img'));
     $('minimap').addEventListener('click', () => UI.openMap());
@@ -115,7 +120,8 @@
         slots[i].appendChild(k);
       }
     }
-    $('hud-gold-n').textContent = I.goldValue(P.inv);
+    fillSlot($('offhand'), P.offSlots[0]);
+    $('hud-gold-n').textContent = I.goldValue(P.inv) + (P.offSlots[0] && I.defs[P.offSlots[0].id].gold ? I.defs[P.offSlots[0].id].gold * P.offSlots[0].n : 0);
   };
 
   UI.inventoryChanged = () => {
@@ -547,6 +553,7 @@
   function setupInventory() {
     buildGrid($('inv-main'), 27);
     buildGrid($('inv-hot'), 9);
+    buildGrid($('inv-off'), 1);
     buildGrid($('chest-grid'), 27);
     buildGrid($('chest-inv'), 27);
     buildGrid($('chest-hot'), 9);
@@ -555,6 +562,7 @@
     const into = (getArr, from, to) => () => (id, n, dur) => addRange(getArr(), from, to, id, n, dur);
     bindGrid($('inv-main'), inv, 9, into(inv, 0, 9));
     bindGrid($('inv-hot'), inv, 0, into(inv, 9, 36));
+    bindGrid($('inv-off'), () => G.Player.offSlots, 0, into(inv, 0, 36));
     bindGrid($('chest-grid'), () => UI.chestItems, 0, into(inv, 0, 36));
     bindGrid($('chest-inv'), inv, 9, into(() => UI.chestItems, 0, 27));
     bindGrid($('chest-hot'), inv, 0, into(() => UI.chestItems, 0, 27));
@@ -597,6 +605,7 @@
     const s = G.Player.inv.slots;
     renderGrid($('inv-main'), s, 9);
     renderGrid($('inv-hot'), s, 0);
+    renderGrid($('inv-off'), G.Player.offSlots, 0);
     renderCrafting();
   }
   function renderCrafting() {

@@ -104,6 +104,7 @@
     hurtRoll: 0, landDip: 0, swayX: 0, swayY: 0, lastYaw: 0, lastPitch: 0, deathT: 0,
     mining: null, swingT: -1, attackCd: 0, useCd: 0, cactusCd: 0, fallY: 0,
     spawn: null, target: null, warned: null, stepT: 0,
+    offSlots: [null], dynLevel: 0, flameT: 0, torchOut: false,
   });
 
   P.init = (scene, camera, look, name) => {
@@ -130,6 +131,13 @@
     P.fpArm.visible = false;
     P.fpItem = new THREE.Group();
     camera.add(P.fpItem);
+    P.fpArmL = C.createFPArm(look);
+    P.fpArmL.rotation.order = 'YXZ';
+    P.fpArmL.visible = false;
+    camera.add(P.fpArmL);
+    P.fpOff = new THREE.Group();
+    camera.add(P.fpOff);
+    P.fpOffId = undefined;
     P.fpHeldId = undefined;
   };
 
@@ -158,6 +166,11 @@
     P.fpArm = C.createFPArm(look);
     P.fpArm.rotation.order = 'YXZ';
     P.camera.add(P.fpArm);
+    P.camera.remove(P.fpArmL);
+    P.fpArmL = C.createFPArm(look);
+    P.fpArmL.rotation.order = 'YXZ';
+    P.camera.add(P.fpArmL);
+    P.model.heldLeftId = undefined;
     P.fpHeldId = undefined;
   };
 
@@ -416,7 +429,17 @@
       P.swingT = 0;
       return true;
     }
-    if (d && d.kind === 'block' && tgt && tgt.block) {
+    if (d && d.kind === 'block' && tgt && tgt.block) return placeFrom(s, () => { P.inv.slots[P.sel] = null; });
+    // Kann die rechte Hand nichts tun, setzt die linke Hand ihren Block (z.B. eine Fackel)
+    const off = P.offSlots[0];
+    if (off && I.defs[off.id] && I.defs[off.id].kind === 'block' && tgt && tgt.block) return placeFrom(off, () => { P.offSlots[0] = null; });
+    return false;
+  }
+
+  function placeFrom(s, clear) {
+    const tgt = P.target;
+    const d = I.defs[s.id];
+    {
       const b = tgt.block;
       let x = b.x + b.nx, y = b.y + b.ny, z = b.z + b.nz;
       const targetDef = B.defs[b.id];
@@ -434,7 +457,7 @@
       World.setBlock(x, y, z, d.block);
       if (d.block === ID.CHEST) World.chests.set(World.idx(x, y, z), new Array(27).fill(null));
       s.n--;
-      if (s.n <= 0) P.inv.slots[P.sel] = null;
+      if (s.n <= 0) clear();
       G.Audio.play('place');
       G.UI.inventoryChanged();
       P.swingT = 0;
@@ -591,12 +614,29 @@
     m.root.rotation.y = P.bodyYaw;
     const headYaw = U.clamp(U.angleDiff(P.bodyYaw, mineDir), -1.1, 1.1);
     const s = P.held();
+    const off = P.offSlots[0];
     const step = C.animate(m, dt, {
       speed: hspeed, onGround: P.onGround, swim: P.inWater && !P.onGround, sprint: P.sprinting,
-      swing: P.swingT, headYaw, headPitch: U.clamp(-P.pitch, -0.9, 0.9), holding: !!s, dead: !P.alive,
+      swing: P.swingT, headYaw, headPitch: U.clamp(-P.pitch, -0.9, 0.9), holding: !!s, holdingLeft: !!off, dead: !P.alive,
     });
     if (step) playStep();
     C.setHeld(m, s ? s.id : null);
+    C.setHeldLeft(m, off ? off.id : null);
+    const t = m.anim.t;
+    for (const mesh of [m.heldMesh, m.heldLeftMesh]) {
+      C.flickerTorch(mesh, t);
+      if (mesh && mesh.userData.torch) mesh.userData.torch.flame.visible = mesh.userData.torch.core.visible = mesh.userData.torch.glow.visible = !P.torchOut;
+    }
+    // kleine Funken über der Flamme (nur von außen sichtbar)
+    P.flameT -= dt;
+    if (P.camMode === 'third' && P.flameT <= 0 && !P.torchOut) {
+      const tm = m.heldLeftMesh && m.heldLeftMesh.userData.torch ? m.heldLeftMesh : m.heldMesh && m.heldMesh.userData.torch ? m.heldMesh : null;
+      if (tm) {
+        P.flameT = 0.14;
+        const v = tm.userData.torch.flame.getWorldPosition(new THREE.Vector3());
+        G.Ent.burst(v.x, v.y + 0.05, v.z, [255, U.randInt(150, 220), 60], 1, 0.15, 'fire', 0.045);
+      }
+    }
     const L = World.lightAt(P.pos.x, P.pos.y + 1.2, P.pos.z);
     C.setTint(m, Math.max(0.14, G.Sky.entityBrightness(L.sky, L.block)), P.hurtT > 0.3 ? 1 : 0);
     G.Ent.placeShadow(P.shadow, P.pos, P.alive ? 1 : 0);
@@ -647,6 +687,9 @@
       P.nameTag.visible = false;
       P.fpArm.visible = P.alive;
       P.fpItem.visible = P.alive;
+      const offS = P.offSlots[0];
+      P.fpArmL.visible = P.alive && !!offS;
+      P.fpOff.visible = P.alive && !!offS;
       // Hand bleibt beim schnellen Umsehen etwas zurück
       const dYaw = U.angleDiff(P.lastYaw, P.yaw), dPitch = P.pitch - P.lastPitch;
       P.lastYaw = P.yaw;
@@ -663,44 +706,57 @@
       P.fpArm.position.set(0.36 + bx - sw * 0.04, -0.5 + by - sw * 0.06, -0.3 - sw * 0.1);
       P.fpItem.position.set(0.3 + bx - sw * 0.1, -0.3 + by - sw * 0.18, -0.72 - sw * 0.08);
       P.fpItem.rotation.set(-sw * 0.9, -0.45, 0.15 + sw * 0.3);
+      // Im Hochformat (Handy) die Hände näher zur Mitte, damit sie im Bild bleiben
+      const hx = U.clamp(cam.aspect / 1.5, 0.5, 1);
+      P.fpArm.position.x *= hx;
+      P.fpItem.position.x *= hx;
+      // linker Arm: Spiegelbild, ruhig nach vorne gehalten
+      const lby = by + Math.sin(a.phase + 1.2) * 0.012 * k;
+      P.fpArmL.rotation.set(1.8, -0.28, 0);
+      P.fpArmL.position.set(-0.36 + bx * 0.7, -0.52 + lby, -0.3);
+      const offTorch = offS && offS.id === ID.TORCH;
+      P.fpOff.position.set((offTorch ? -0.34 : -0.3) + bx * 0.7, (offTorch ? -0.36 : -0.33) + lby, offTorch ? -0.74 : -0.7);
+      P.fpOff.rotation.set(0, offTorch ? 0 : 0.45, offTorch ? 0 : -0.15);
+      P.fpArmL.position.x *= hx;
+      P.fpOff.position.x *= hx;
+      const offId = offS ? offS.id : null;
+      if (P.fpOffId !== offId) {
+        P.fpOffId = offId;
+        clearGroup(P.fpOff);
+        if (offId) { const im = fpItemMesh(offId, true); if (im) P.fpOff.add(im); }
+      }
       const s = P.held();
       const hid = s ? s.id : null;
       if (P.fpHeldId !== hid) {
         P.fpHeldId = hid;
-        const g = P.fpItem;
-        while (g.children.length) {
-          const c = g.children[0];
-          g.remove(c);
-          c.traverse((o) => {
-            if (!o.isMesh) return;
-            o.geometry.dispose();
-            for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
-          });
-        }
-        if (hid) {
-          const im = C.itemMesh(hid, 0.42, true);
-          if (im) {
-            if (im.userData.cube) { im.scale.setScalar(0.5); im.position.set(0.06, -0.06, 0); }
-            im.traverse((o) => {
-              if (!o.isMesh) return;
-              o.renderOrder = 1000;
-              // Würfel-Materialien sind geteilt: für die Hand eigene Kopien
-              o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material;
-              for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.depthTest = false;
-            });
-            g.add(im);
-          }
-        }
+        clearGroup(P.fpItem);
+        if (hid) { const im = fpItemMesh(hid, false); if (im) P.fpItem.add(im); }
       }
       const L = World.lightAt(eye.x, eye.y, eye.z);
       const br = Math.max(0.14, G.Sky.entityBrightness(L.sky, L.block));
       for (const mt of P.fpArm.userData.mats) mt.color.setRGB(br, br, br);
-      P.fpItem.traverse((o) => {
-        if (o.isMesh) for (const mt of Array.isArray(o.material) ? o.material : [o.material]) mt.color.setRGB(br, br, br);
-      });
+      for (const mt of P.fpArmL.userData.mats) mt.color.setRGB(br, br, br);
+      for (const grp of [P.fpItem, P.fpOff]) {
+        grp.traverse((o) => {
+          if (!o.isMesh || o.userData.glow) return;
+          for (const mt of Array.isArray(o.material) ? o.material : [o.material]) {
+            // Grundfarbe behalten (z.B. brauner Fackelstiel), nur abdunkeln
+            if (mt.userData.base) mt.color.copy(mt.userData.base).multiplyScalar(br);
+            else mt.color.setRGB(br, br, br);
+          }
+        });
+        const tm = grp.children[0];
+        if (tm && tm.userData.torch) {
+          C.flickerTorch(tm, a.t);
+          const d2 = tm.userData.torch;
+          d2.flame.visible = d2.core.visible = d2.glow.visible = !P.torchOut;
+        }
+      }
     } else {
       P.fpArm.visible = false;
       P.fpItem.visible = false;
+      P.fpArmL.visible = false;
+      P.fpOff.visible = false;
       // Über-die-Schulter-Kamera mit Kollision (im Hochformat etwas weiter weg)
       const want = cam.aspect < 1 ? 5.2 : 4.2;
       const side = 0.55;
@@ -731,11 +787,90 @@
     }
     // Kopf unter Wasser?
     P.headInWater = Phys.submerged(cam.position.x, cam.position.y, cam.position.z);
+    updateTorchLight(dt, eye);
+  };
+
+  // Fackel in einer Hand: bewegliches Licht rund um den Spieler (geht unter Wasser aus)
+  function updateTorchLight(dt, eye) {
+    const main = P.held(), off = P.offSlots[0];
+    const torchInLeft = !!(off && off.id === ID.TORCH);
+    const hasTorch = P.alive && (torchInLeft || !!(main && main.id === ID.TORCH));
+    let lp;
+    if (P.camMode === 'first') lp = eye.clone().addScaledVector(right, torchInLeft ? -0.35 : 0.35).add(new THREE.Vector3(0, -0.3, 0)).addScaledVector(fwd, 0.4);
+    else lp = new THREE.Vector3(P.pos.x, P.pos.y + 1.25, P.pos.z);
+    const wet = hasTorch && Phys.submerged(lp.x, lp.y, lp.z);
+    if (wet && !P.torchOut) G.UI.toast('Unter Wasser geht die Fackel aus.');
+    P.torchOut = wet;
+    const target = hasTorch && !wet ? 14 : 0;
+    P.dynLevel += (target - P.dynLevel) * Math.min(1, dt * (target > P.dynLevel ? 10 : 6));
+    const t = P.model.anim.t;
+    const flicker = Math.sin(t * 13) * 0.22 + Math.sin(t * 7.3 + 1) * 0.18 + Math.sin(t * 23.1) * 0.1;
+    const lvl = P.dynLevel > 0.05 ? P.dynLevel + flicker * (P.dynLevel / 14) : 0;
+    World.dyn.x = lp.x; World.dyn.y = lp.y; World.dyn.z = lp.z;
+    World.dyn.level = lvl;
+    World.uniforms.uDynPos.value.copy(lp);
+    World.uniforms.uDynLevel.value = lvl;
+  }
+
+  // Gruppe leeren und Speicher freigeben
+  function clearGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0];
+      g.remove(c);
+      c.traverse((o) => {
+        if (o.isSprite) { o.material.dispose(); return; }
+        if (!o.isMesh) return;
+        o.geometry.dispose();
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
+      });
+    }
+  }
+  // Gegenstand für die Ich-Sicht (immer sichtbar, auch direkt vor einer Wand)
+  function fpItemMesh(id, left) {
+    let im;
+    if (id === ID.TORCH) {
+      im = C.torchModel(0.78);
+      im.rotation.set(-0.12, 0, left ? -0.22 : 0.22);
+      im.position.set(left ? -0.04 : 0.04, -0.12, 0.02);
+    } else {
+      im = C.itemMesh(id, 0.42, true);
+      if (!im) return null;
+      if (im.userData.cube) { im.scale.setScalar(0.5); im.position.set(left ? -0.06 : 0.06, -0.06, 0); }
+      if (left) im.scale.x *= -1;
+    }
+    im.traverse((o) => {
+      if (o.isSprite) {
+        o.renderOrder = 1001;
+        o.material.depthTest = false;
+        o.userData.glow = true;
+        return;
+      }
+      if (!o.isMesh) return;
+      o.renderOrder = 1000;
+      // Würfel-Materialien sind geteilt: für die Hand eigene Kopien
+      o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.depthTest = false;
+      if (o.material.isMeshBasicMaterial) o.userData.glow = true;
+    });
+    return im;
+  }
+
+  // Gegenstand der gewählten Schnellleisten-Stelle mit der linken Hand tauschen
+  P.swapHands = () => {
+    if (!P.alive) return;
+    const a = P.inv.slots[P.sel];
+    P.inv.slots[P.sel] = P.offSlots[0];
+    P.offSlots[0] = a;
+    G.Audio.play('click');
+    G.UI.inventoryChanged();
+    const o = P.offSlots[0];
+    if (o) G.UI.toast(I.name(o.id) + ' in der linken Hand');
   };
 
   P.serialize = () => ({
     x: P.pos.x, y: P.pos.y, z: P.pos.z, yaw: P.yaw, pitch: P.pitch, health: P.health,
     inv: P.inv.serialize(), sel: P.sel, spawn: P.spawn,
+    off: P.offSlots[0] ? [P.offSlots[0].id, P.offSlots[0].n, P.offSlots[0].dur === undefined ? -1 : P.offSlots[0].dur] : 0,
   });
   P.load = (o) => {
     P.pos.set(o.x, o.y, o.z);
@@ -743,6 +878,8 @@
     P.pitch = o.pitch || 0;
     P.health = o.health > 0 ? o.health : P.maxHealth;
     P.inv.load(o.inv);
+    const off = o.off;
+    P.offSlots[0] = off && I.defs[off[0]] ? (off[2] >= 0 ? { id: off[0], n: off[1], dur: off[2] } : { id: off[0], n: off[1] }) : null;
     P.sel = o.sel || 0;
     P.spawn = o.spawn || null;
     // Kamera-Einstellung kommt aus den Einstellungen (Standard: Ich-Sicht)

@@ -37,7 +37,22 @@
     if (x < 0 || z < 0 || x >= W || z >= W) return true;
     return SOLID[blocks[idx(x, y, z)]] === 1;
   };
+  // Bewegliches Licht (z.B. Fackel in der Hand): Stärke 0 = aus
+  const dyn = (World.dyn = { x: 0, y: 0, z: 0, level: 0 });
   World.lightAt = (x, y, z) => {
+    x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);
+    if (y >= H || x < 0 || z < 0 || x >= W || z >= W) return { sky: 15, block: 0 };
+    if (y < 0) return { sky: 0, block: 0 };
+    const l = light[idx(x, y, z)];
+    let block = l & 15;
+    if (dyn.level > 0) {
+      const lv = dyn.level - Math.hypot(x + 0.5 - dyn.x, y + 0.5 - dyn.y, z + 0.5 - dyn.z);
+      if (lv > block) block = lv;
+    }
+    return { sky: l >> 4, block };
+  };
+  // Licht ohne die Fackel in der Hand (für das Spawnen von Monstern)
+  World.staticLightAt = (x, y, z) => {
     x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);
     if (y >= H || x < 0 || z < 0 || x >= W || z >= W) return { sky: 15, block: 0 };
     if (y < 0) return { sky: 0, block: 0 };
@@ -1617,6 +1632,8 @@
     uniform float uTime;
     uniform float uWater;
     uniform float uGamma;
+    uniform vec3 uDynPos;
+    uniform float uDynLevel;
     varying vec2 vUv;
     varying vec3 vColor;
     varying vec2 vLight;
@@ -1627,6 +1644,14 @@
       if (t.a < uAlphaTest) discard;
       float s = max(vLight.x - uSkyDrop, vLight.x * uFlash);
       float b = vLight.y;
+      // Fackel in der Hand: Licht nimmt pro Block um 1 ab, Flächen zur Fackel hin sind heller
+      if (uDynLevel > 0.0) {
+        vec3 dl = uDynPos - vWorld;
+        float dist = length(dl);
+        vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+        float facing = clamp(dot(n, dl) / max(dist, 0.001), 0.0, 1.0);
+        b = max(b, (uDynLevel - dist) * mix(0.6, 1.0, facing));
+      }
       float L = clamp(max(s, b), 0.0, 15.0);
       float br = pow(0.84, 15.0 - L);
       br = max(br, 0.035) * uGamma;
@@ -1650,6 +1675,8 @@
     uFlash: { value: 0 },
     uTime: { value: 0 },
     uGamma: { value: 1 },
+    uDynPos: { value: new THREE.Vector3() },
+    uDynLevel: { value: 0 },
   };
   World.createMaterials = (scene) => {
     World.scene = scene;
@@ -1658,6 +1685,7 @@
       uniforms: Object.assign({}, u, { uAlphaTest: { value: 0.5 }, uOpacity: { value: 1 }, uWater: { value: 0 } }),
       vertexShader: VERT,
       fragmentShader: FRAG,
+      extensions: { derivatives: true },
     });
     World.matWater = new THREE.ShaderMaterial({
       uniforms: Object.assign({}, u, { uAlphaTest: { value: 0.01 }, uOpacity: { value: 0.72 }, uWater: { value: 1 } }),
@@ -1666,6 +1694,7 @@
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
+      extensions: { derivatives: true },
     });
   };
 
