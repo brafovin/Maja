@@ -590,6 +590,8 @@
     CHISELED_SANDSTONE: 31, TERRA_ORANGE: 32, TERRA_BLUE: 33, WOOL: 34, BRICKS: 35,
     CHEST: 36, TORCH: 37, FLOWER_RED: 38, FLOWER_YELLOW: 39, TALL_GRASS: 40, DEAD_BUSH: 41,
     BED: 42, BOOKSHELF: 43, CRAFTING: 44, SPRUCE_PLANKS: 45,
+    // Fließendes Wasser: Stufe 1..7 (je weiter weg von der Quelle, desto flacher) und fallendes Wasser
+    WATER_1: 46, WATER_2: 47, WATER_3: 48, WATER_4: 49, WATER_5: 50, WATER_6: 51, WATER_7: 52, WATER_FALL: 53,
   });
 
   const defs = (B.defs = []);
@@ -662,6 +664,12 @@
   def(ID.BOOKSHELF, 'Bücherregal', { tex: { top: 'planks', side: 'bookshelf', bottom: 'planks' }, hardness: 1.5, tool: 'axe', map: [140, 100, 70] });
   def(ID.CRAFTING, 'Werkbank', { tex: { top: 'crafting_top', side: 'crafting_side', bottom: 'planks' }, hardness: 2.5, tool: 'axe', interact: 'craft', map: [150, 110, 60] });
   def(ID.SPRUCE_PLANKS, 'Dunkle Bretter', { tex: 'spruce_planks', hardness: 2, tool: 'axe', map: [112, 80, 46] });
+  for (let k = 1; k <= 8; k++) {
+    def(ID.WATER_1 + k - 1, 'Wasser', {
+      tex: 'water', solid: false, opaque: false, render: 'water', hardness: -1, filter: 2,
+      placeable: false, replaceable: true, map: [60 + k * 4, 110 + k * 3, 214],
+    });
+  }
 
   B.count = defs.length;
   // Schnelle Lookup-Tabellen für das Meshing
@@ -679,6 +687,36 @@
     B.FILTER[d.id] = d.opaque ? 15 : d.filter;
     B.EMIT[d.id] = d.light;
   }
+
+  // Wasser: Quelle = Stufe 0, fließend = 1..7, fallend = 8, kein Wasser = -1
+  B.ISWATER = new Uint8Array(256);
+  B.LEVEL = new Int8Array(256).fill(-1);
+  B.ISWATER[ID.WATER] = 1;
+  B.LEVEL[ID.WATER] = 0;
+  for (let k = 1; k <= 8; k++) {
+    B.ISWATER[ID.WATER_1 + k - 1] = 1;
+    B.LEVEL[ID.WATER_1 + k - 1] = k;
+  }
+  B.waterId = (level) => (level === 0 ? ID.WATER : ID.WATER_1 + level - 1);
+  // Wasserhöhe im Block (0..1); aboveIsWater: Wasser darüber = ganz voll
+  B.waterHeight = (id, aboveIsWater) => {
+    const l = B.LEVEL[id];
+    if (l < 0) return 0;
+    if (aboveIsWater) return 1;
+    if (l === 0 || l === 8) return 0.875;
+    return ((8 - l) / 9) * 0.98;
+  };
+  // Wird von fließendem Wasser weggespült (Blumen, Gras, Fackeln)
+  B.WASH = new Uint8Array(256);
+  for (const d of defs) if (d && (d.render === 'cross' || d.render === 'torch')) B.WASH[d.id] = 1;
+  // Fällt herunter, wenn nichts darunter ist
+  B.GRAVITY = new Uint8Array(256);
+  B.GRAVITY[ID.SAND] = 1;
+  B.GRAVITY[ID.GRAVEL] = 1;
+  B.ISLOG = new Uint8Array(256);
+  for (const id of [ID.LOG, ID.BIRCH_LOG, ID.SPRUCE_LOG, ID.JUNGLE_LOG]) B.ISLOG[id] = 1;
+  B.ISLEAF = new Uint8Array(256);
+  for (const d of defs) if (d && d.render === 'leaves') B.ISLEAF[d.id] = 1;
 
   // Textur als THREE-Objekt
   B.texture = new THREE.CanvasTexture(atlas);

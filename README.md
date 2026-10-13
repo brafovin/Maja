@@ -33,6 +33,15 @@ Das Spiel speichert automatisch im Browser (Figur, Welt, Inventar, gebaute Blöc
 - **Werkzeuge:** Spitzhacken, Äxte, Schaufeln und Schwerter aus Holz, Stein, Eisen und Diamant.
   Gold- und Diamanterz braucht eine Eisenspitzhacke, Eisenerz eine Steinspitzhacke.
 - **Herstellen** von Brettern, Stöcken, Fackeln, Werkzeugen, Truhen, Betten und mehr.
+- **Realistische Physik der Welt:**
+  - **Wasser fließt:** Baust du einen Block neben Wasser ab, strömt es hinein. Es breitet sich bis zu
+    7 Blöcke weit aus, fließt Abhänge hinunter und sucht sich den Weg zum nächsten Loch. Ist die Quelle
+    weg, läuft das Wasser wieder ab. Zwei Wasserquellen nebeneinander ergeben eine neue Quelle.
+  - Die **Strömung** trägt dich, Tiere und Gegenstände mit.
+  - Fließendes Wasser **spült** Blumen, Gras und Fackeln weg.
+  - **Sand und Kies fallen** herunter, wenn darunter nichts mehr ist.
+  - Fällst du einen Baum, **zerfällt das Laub** nach und nach.
+  - Mit einem **Eimer** (aus 3 Eisenbarren, manchmal auch in Truhen) kannst du Wasser schöpfen und ausgießen.
 - **Tag und Nacht** mit Sonne, Mond und Sternen. Im Bett kannst du die Nacht überspringen.
 - **Wetter:** Regen, **Gewitter mit Blitzen und Donner** und **Schnee**.
 - **Karte oben rechts** und eine große Karte der ganzen Insel (Taste **M** oder auf die Karte tippen).
@@ -72,6 +81,7 @@ Auf dem Handy: links der Joystick zum Laufen, wischen zum Umsehen, rechts die Kn
 | `js/character.js` | Figur im Steve-Körperbau und Laufanimation |
 | `js/mobs.js` | Tiere und Monster |
 | `js/entities.js` | Gegenstände am Boden, Partikel, Pfeile, Explosionen |
+| `js/sim.js` | Fließendes Wasser, fallender Sand und Kies, Laubzerfall |
 | `js/sky.js` | Tag/Nacht, Wolken, Regen, Schnee, Gewitter |
 | `js/player.js` | Steuerung, Kamera, Abbauen und Bauen |
 | `js/ui.js` | Anzeigen, Karte, Inventar, Menüs, Figuren-Editor |

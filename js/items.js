@@ -7,6 +7,7 @@
   const IT = (I.ID = {
     STICK: 100, COAL: 101, IRON: 102, GOLD: 103, DIAMOND: 104, APPLE: 105, BREAD: 106,
     MEAT: 107, FEATHER: 108, LEATHER: 109, BONE: 110, STRING: 111, GUNPOWDER: 112,
+    BUCKET: 113, WATER_BUCKET: 114,
     WOOD_PICK: 120, STONE_PICK: 121, IRON_PICK: 122, DIAMOND_PICK: 123,
     WOOD_AXE: 124, STONE_AXE: 125, IRON_AXE: 126, DIAMOND_AXE: 127,
     WOOD_SHOVEL: 128, STONE_SHOVEL: 129, IRON_SHOVEL: 130, DIAMOND_SHOVEL: 131,
@@ -194,6 +195,8 @@
     [IT.STRING]: () => pixelIcon((put) => {
       for (let x = 2; x < 14; x++) put(x, Math.round(8 + Math.sin(x * 0.9) * 2.5), [236, 236, 236]);
     }),
+    [IT.BUCKET]: () => bucket(false),
+    [IT.WATER_BUCKET]: () => bucket(true),
     [IT.GUNPOWDER]: () => pixelIcon((put) => {
       const r = U.mulberry32(5);
       for (let y = 6; y < 14; y++)
@@ -201,6 +204,22 @@
           if (Math.abs(x - 7.5) < (y - 5) * 0.9 && r() < 0.8) put(x, y, r() < 0.5 ? [80, 80, 80] : [120, 120, 120]);
     }),
   };
+  function bucket(water) {
+    return pixelIcon((put) => {
+      for (let x = 3; x <= 12; x++) put(x, 4 - Math.round(2.6 * Math.sin((Math.PI * (x - 3)) / 9)), [90, 90, 96]);
+      for (let y = 4; y <= 13; y++) {
+        const inset = Math.floor((y - 4) / 4);
+        for (let x = 3 + inset; x <= 12 - inset; x++) {
+          let c = [196, 196, 204];
+          if (x === 3 + inset) c = [236, 236, 242];
+          if (x === 12 - inset || y === 13) c = [120, 120, 128];
+          if (y === 4) c = [80, 80, 88];
+          if (water && y >= 5 && y <= 6 && x > 3 + inset && x < 12 - inset) c = y === 5 ? [120, 170, 250] : [52, 98, 206];
+          put(x, y, c);
+        }
+      }
+    });
+  }
   function ingot(c, hl, dk) {
     return pixelIcon((put) => {
       for (let y = 5; y < 12; y++)
@@ -241,6 +260,8 @@
   defItem(IT.BONE, 'Knochen', {});
   defItem(IT.STRING, 'Faden', {});
   defItem(IT.GUNPOWDER, 'Schwarzpulver', {});
+  defItem(IT.BUCKET, 'Eimer', { stack: 16 });
+  defItem(IT.WATER_BUCKET, 'Wassereimer', { stack: 1 });
   defs[ID.GOLD_BLOCK].gold = 9;
   defs[ID.GOLD_ORE] && (defs[ID.GOLD_ORE].gold = 1);
 
@@ -366,6 +387,7 @@
     R(IT.DIAMOND_AXE, 1, [[IT.DIAMOND, 3], [IT.STICK, 2]]),
     R(IT.DIAMOND_SHOVEL, 1, [[IT.DIAMOND, 1], [IT.STICK, 2]]),
     R(ID.CHEST, 1, [[PLANKS, 8]]),
+    R(IT.BUCKET, 1, [[IT.IRON, 3]]),
     R(ID.BED, 1, [[ID.WOOL, 3], [PLANKS, 3]]),
     R(ID.WOOL, 1, [[IT.STRING, 4]]),
     R(ID.GLASS, 2, [[ID.SAND, 2], [IT.COAL, 1]]),

@@ -324,7 +324,7 @@
   // Gegenstand in der Hand
   // ---------------------------------------------------------------------------
   const cubeGeoCache = {};
-  function blockItemMesh(blockId) {
+  function blockItemMesh(blockId, size = 0.3) {
     const B = G.B;
     const d = B.defs[blockId];
     if (!cubeGeoCache[blockId]) {
@@ -340,9 +340,11 @@
       });
       cubeGeoCache[blockId] = mats;
     }
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), cubeGeoCache[blockId]);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), cubeGeoCache[blockId]);
     return mesh;
   }
+  // Würfel mit Block-Texturen (z.B. für fallenden Sand); Materialien sind geteilt
+  C.blockCube = blockItemMesh;
   // flat = true: Bild zeigt zur Kamera (Ich-Sicht), sonst seitlich in der Hand
   C.itemMesh = (itemId, size = 0.55, flat = false) => {
     const I = G.Items;

@@ -188,6 +188,14 @@
       case 'chest':
         tone(0.35, 'sawtooth', 110, 190, 0.08 * v, 0, 700);
         break;
+      case 'flow':
+        noise(0.6, 'bandpass', 650, 380, 0.07 * v, 0.6);
+        noise(0.4, 'highpass', 2200, 1600, 0.03 * v, 0.5, 0.1);
+        break;
+      case 'bucket':
+        noise(0.25, 'bandpass', 1400, 600, 0.25 * v, 0.8);
+        tone(0.12, 'sine', 420, 260, 0.08 * v, 0.05);
+        break;
       case 'splash':
         noise(0.35, 'bandpass', 1200, 400, 0.3 * v, 0.7);
         break;

@@ -6,6 +6,7 @@
   const WW = W * W;
   const World = (G.World = { W, H, SEA, CS, NC });
   const SOLID = B.SOLID, OPAQUE = B.OPAQUE, AOC = B.AO, FILTER = B.FILTER, EMIT = B.EMIT;
+  const ISW = B.ISWATER, LEVEL = B.LEVEL;
   const defs = B.defs;
 
   let blocks = null, light = null, heightMap = null, biomeMap = null, reserved = null;
@@ -295,7 +296,7 @@
     for (let y = H - 1; y > 0; y--) {
       const b = blocks[idx(x, y, z)];
       if (b !== ID.AIR && SOLID[b] && defs[b].render !== 'leaves' && b !== ID.LOG && b !== ID.BIRCH_LOG && b !== ID.SPRUCE_LOG && b !== ID.JUNGLE_LOG) return y;
-      if (b === ID.WATER) return y;
+      if (ISW[b]) return y;
     }
     return 0;
   }
@@ -367,7 +368,7 @@
         [T.APPLE, 1, 3, 0.6], [T.BREAD, 1, 3, 0.5], [ID.TORCH, 2, 6, 0.6], [T.COAL, 1, 5, 0.5],
         [T.IRON, 1, 3, 0.35], [T.STONE_PICK, 1, 1, 0.35], [T.STONE_SWORD, 1, 1, 0.2],
         [T.IRON_PICK, 1, 1, 0.08], [ID.PLANKS, 4, 12, 0.4], [ID.WOOL, 1, 3, 0.3], [T.STICK, 2, 6, 0.4],
-        [T.MEAT, 1, 2, 0.3], [ID.GLASS, 2, 4, 0.2],
+        [T.MEAT, 1, 2, 0.3], [ID.GLASS, 2, 4, 0.2], [T.BUCKET, 1, 1, 0.45],
       ];
     if (kind === 'desert')
       return [
@@ -540,7 +541,7 @@
           setB(cx + dx, y, cz + dz, id);
         }
       }
-    setB(cx, fy + 1, cz, ID.WATER); // weiche Landung
+    setB(cx, fy, cz, ID.WATER); // weiche Landung in einer kleinen Wassermulde
     placeChest(cx + 3, fy + 1, cz, 'desert', rng);
     placeChest(cx - 3, fy + 1, cz, 'desert', rng);
     placeChest(cx, fy + 1, cz + 3, 'desert', rng);
@@ -1056,38 +1057,112 @@
   }
   World.markDirtyRange = markDirtyRange;
 
-  function afterChange(minX, minZ, maxX, maxZ) {
+  // Licht für reine Wasser-Änderungen wird gesammelt und höchstens einmal pro Sekunde berechnet
+  let lightBox = null, lightT = 0;
+  function afterChange(minX, minZ, maxX, maxZ, waterOnly) {
     for (let z = Math.max(0, minZ); z <= Math.min(W - 1, maxZ); z++)
       for (let x = Math.max(0, minX); x <= Math.min(W - 1, maxX); x++) heightMap[z * W + x] = columnTop(x, z);
-    const ch = relight(minX - 15, minZ - 15, maxX + 15, maxZ + 15);
     markDirtyRange(minX - 1, minZ - 1, maxX + 1, maxZ + 1);
-    if (ch) markDirtyRange(ch[0] - 1, ch[1] - 1, ch[2] + 1, ch[3] + 1);
+    if (waterOnly) {
+      if (!lightBox) lightBox = [minX, minZ, maxX, maxZ];
+      else {
+        lightBox[0] = Math.min(lightBox[0], minX); lightBox[1] = Math.min(lightBox[1], minZ);
+        lightBox[2] = Math.max(lightBox[2], maxX); lightBox[3] = Math.max(lightBox[3], maxZ);
+      }
+    } else {
+      const ch = relight(minX - 15, minZ - 15, maxX + 15, maxZ + 15);
+      if (ch) markDirtyRange(ch[0] - 1, ch[1] - 1, ch[2] + 1, ch[3] + 1);
+    }
     for (let z = Math.max(0, minZ); z <= Math.min(W - 1, maxZ + 1); z++)
       for (let x = Math.max(0, minX); x <= Math.min(W - 1, maxX); x++) World.updateMapColumn(x, z);
     World.mapDirty = true;
   }
+  World.tickLight = (dt) => {
+    lightT -= dt;
+    if (!lightBox || lightT > 0) return;
+    lightT = 1;
+    const b = lightBox;
+    lightBox = null;
+    // sehr große Bereiche in Stücken berechnen
+    for (let z0 = b[1]; z0 <= b[3]; z0 += 48)
+      for (let x0 = b[0]; x0 <= b[2]; x0 += 48) {
+        const x1 = Math.min(b[2], x0 + 47), z1 = Math.min(b[3], z0 + 47);
+        const ch = relight(x0 - 15, z0 - 15, x1 + 15, z1 + 15);
+        if (ch) markDirtyRange(ch[0] - 1, ch[1] - 1, ch[2] + 1, ch[3] + 1);
+      }
+  };
 
-  World.setBlock = (x, y, z, id) => {
-    if (x < 0 || z < 0 || x >= W || z >= W || y < 0 || y >= H) return false;
+  // Wer auf Änderungen reagieren möchte (fließendes Wasser, fallender Sand, Laub)
+  World.listeners = [];
+  const waterish = (id) => id === ID.AIR || ISW[id] === 1;
+
+  // Block sofort setzen, ohne Licht/Mesh; gibt alte ID zurück (oder -1)
+  World.rawSet = (x, y, z, id) => {
+    if (x < 0 || z < 0 || x >= W || z >= W || y < 0 || y >= H) return -1;
     const i = idx(x, y, z);
-    if (blocks[i] === id) return false;
+    const old = blocks[i];
+    if (old === id) return -1;
     blocks[i] = id;
     World.mods.set(i, id);
-    afterChange(x, z, x, z);
+    return old;
+  };
+  // Gesammelte Änderungen [x,y,z,alt,neu] übernehmen: Höhen, Licht, Meshes, Karte
+  World.commit = (changes) => {
+    if (!changes.length) return;
+    const groups = new Map();
+    for (const c of changes) {
+      const key = (c[0] >> 4) + ',' + (c[2] >> 4);
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = [1e9, 1e9, -1e9, -1e9, true]));
+      g[0] = Math.min(g[0], c[0]); g[1] = Math.min(g[1], c[2]);
+      g[2] = Math.max(g[2], c[0]); g[3] = Math.max(g[3], c[2]);
+      if (!(waterish(c[3]) && waterish(c[4]))) g[4] = false;
+    }
+    for (const g of groups.values()) afterChange(g[0], g[1], g[2], g[3], g[4]);
+    for (const f of World.listeners) f(changes);
+  };
+
+  World.setBlock = (x, y, z, id) => {
+    const old = World.rawSet(x, y, z, id);
+    if (old < 0) return false;
+    World.commit([[x, y, z, old, id]]);
     return true;
   };
   World.setBlocks = (list) => {
-    if (!list.length) return;
-    let minX = 1e9, minZ = 1e9, maxX = -1e9, maxZ = -1e9;
+    const changes = [];
     for (const [x, y, z, id] of list) {
-      if (x < 0 || z < 0 || x >= W || z >= W || y < 0 || y >= H) continue;
-      const i = idx(x, y, z);
-      blocks[i] = id;
-      World.mods.set(i, id);
-      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-      minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+      const old = World.rawSet(x, y, z, id);
+      if (old >= 0) changes.push([x, y, z, old, id]);
     }
-    if (minX <= maxX) afterChange(minX, minZ, maxX, maxZ);
+    World.commit(changes);
+  };
+
+  // Wasserhöhe in einer Zelle (0..1) oder -1 ohne Wasser
+  World.waterAt = (x, y, z) => {
+    const b = World.get(x, y, z);
+    if (!ISW[b]) return -1;
+    return B.waterHeight(b, ISW[World.get(x, y + 1, z)] === 1);
+  };
+  // Strömungsrichtung des Wassers (zu tieferem Wasser und zu Abhängen hin)
+  World.flowAt = (x, y, z) => {
+    const b = World.get(x, y, z);
+    const L = LEVEL[b];
+    if (L <= 0) return null;
+    if (L === 8) return { x: 0, z: 0, down: 1 };
+    const h = World.waterAt(x, y, z);
+    let fx = 0, fz = 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const n = World.get(x + dx, y, z + dz);
+      if (ISW[n]) {
+        const hn = World.waterAt(x + dx, y, z + dz);
+        if (hn < h) { fx += dx * (h - hn) * 4; fz += dz * (h - hn) * 4; }
+      } else if (!SOLID[n]) {
+        const k = SOLID[World.get(x + dx, y - 1, z + dz)] ? 0.4 : 1;
+        fx += dx * k; fz += dz * k;
+      }
+    }
+    const l = Math.hypot(fx, fz);
+    return l > 0.01 ? { x: fx / l, z: fz / l, down: 0 } : null;
   };
   // Änderungen aus einem Speicherstand anwenden (vor dem Licht)
   World.applyMods = (pairs) => {
@@ -1105,7 +1180,8 @@
   // ---------------------------------------------------------------------------
   // Strahl-Test (Voxel-DDA)
   // ---------------------------------------------------------------------------
-  World.raycast = (ox, oy, oz, dx, dy, dz, maxDist, solidOnly) => {
+  // hitWater: auch an stillem Wasser (Quelle) anhalten, z.B. für den Eimer
+  World.raycast = (ox, oy, oz, dx, dy, dz, maxDist, solidOnly, hitWater) => {
     let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
     const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
     const tdx = dx !== 0 ? Math.abs(1 / dx) : 1e9;
@@ -1117,7 +1193,8 @@
     let nx = 0, ny = 0, nz = 0, t = 0;
     for (let s = 0; s < 400; s++) {
       const id = World.get(x, y, z);
-      if (id !== ID.AIR && id !== ID.WATER && (!solidOnly || OPAQUE[id] || SOLID[id])) {
+      if (hitWater && LEVEL[id] === 0 && World.inside(x, z)) return { x, y, z, nx, ny, nz, dist: t, id, water: true };
+      if (id !== ID.AIR && !ISW[id] && (!solidOnly || OPAQUE[id] || SOLID[id])) {
         if (World.inside(x, z) || solidOnly) return { x, y, z, nx, ny, nz, dist: t, id };
       }
       if (solidOnly && !World.inside(x, z) && y <= SEA + 2) return { x, y, z, nx, ny, nz, dist: t, id: ID.STONE };
@@ -1302,6 +1379,62 @@
     }
   }
 
+  // Höhe einer Wasserzelle im Puffer (0..1), -1 = kein Wasser
+  function wHeight(q) {
+    const b = pb[q];
+    if (!ISW[b]) return -1;
+    return B.waterHeight(b, ISW[pb[q + SY]] === 1);
+  }
+  // Höhe einer oberen Ecke = Mittel der vier Säulen an dieser Ecke -> schräge Wasseroberfläche
+  function cornerHeight(pi, cx, cz) {
+    let sum = 0, n = 0;
+    for (let dz = cz - 1; dz <= cz; dz++)
+      for (let dx = cx - 1; dx <= cx; dx++) {
+        const q = pi + dx + dz * PX;
+        const b = pb[q];
+        if (ISW[b]) {
+          if (ISW[pb[q + SY]]) return 1;
+          const w = LEVEL[b] === 0 ? 3 : 1;
+          sum += wHeight(q) * w;
+          n += w;
+        } else if (!SOLID[b]) n += 1;
+      }
+    return n ? sum / n : 0.875;
+  }
+  function emitWater(mb, x, y, z, pi, d) {
+    const t = B.tileUV(d.faceTiles[2]);
+    const full = ISW[pb[pi + SY]] === 1;
+    const ch = full ? [1, 1, 1, 1] : [cornerHeight(pi, 0, 0), cornerHeight(pi, 1, 0), cornerHeight(pi, 0, 1), cornerHeight(pi, 1, 1)];
+    const own = pl[pi];
+    for (let fi = 0; fi < 6; fi++) {
+      const f = FACES[fi];
+      const nq = pi + f.o;
+      const nid = pb[nq];
+      if (fi === 2) {
+        if (full) continue;
+      } else {
+        if (ISW[nid] || OPAQUE[nid]) continue;
+        if (fi === 3 && SOLID[nid]) continue;
+      }
+      const nl = fi === 2 && OPAQUE[nid] ? own : pl[nq];
+      const ls = Math.max(nl >> 4, (own >> 4) - 2), lb = Math.max(nl & 15, (own & 15) - 1);
+      for (let k = 0; k < 4; k++) {
+        const c = f.c[k];
+        const hc = ch[c[0] + c[2] * 2];
+        qp[k * 3] = (x + c[0]) * 16;
+        qp[k * 3 + 1] = c[1] ? Math.round((y + hc) * 16) : y * 16;
+        qp[k * 3 + 2] = (z + c[2]) * 16;
+        const v = fi === 2 || fi === 3 ? UVC[k][1] : c[1] ? hc : 0;
+        quv[k * 2] = U.lerp(t[0] + EPS, t[2] - EPS, UVC[k][0]);
+        quv[k * 2 + 1] = U.lerp(t[1] + EPS, t[3] - EPS, v);
+        qc[k * 3] = qc[k * 3 + 1] = qc[k * 3 + 2] = f.s;
+        ql[k * 2] = ls;
+        ql[k * 2 + 1] = lb;
+      }
+      mb.quad(qp, quv, qc, ql, false);
+    }
+  }
+
   function emitCross(mb, x, y, z, pi, d, tint) {
     const t = B.tileUV(d.faceTiles[0]);
     const l = pl[pi];
@@ -1364,14 +1497,7 @@
               emitCube(mbSolid, lx, y, lz, pi, d, fi, d.faceTiles[fi], tint, (y + 1) * 16);
             }
           } else if (r === 'water') {
-            const above = pb[pi + SY];
-            const top = above === ID.WATER ? (y + 1) * 16 : y * 16 + 14;
-            for (let fi = 0; fi < 6; fi++) {
-              const nid = pb[pi + FACES[fi].o];
-              if (nid === ID.WATER || OPAQUE[nid]) continue;
-              if (fi === 3 && nid !== ID.AIR) continue;
-              emitCube(mbWater, lx, y, lz, pi, d, fi, d.faceTiles[fi], ONE, top);
-            }
+            emitWater(mbWater, lx, y, lz, pi, d);
           } else if (r === 'cross') {
             let tint = ONE;
             if (d.tint === 'biome') {
@@ -1570,9 +1696,9 @@
       const t = BIOME_TINT[biomeMap[z * W + x]];
       r *= t[0]; g *= t[1]; b *= t[2];
     }
-    if (id === ID.WATER) {
+    if (ISW[id]) {
       let depth = 0;
-      while (depth < 12 && blocks[idx(x, y - depth - 1, z)] === ID.WATER) depth++;
+      while (depth < 12 && y - depth - 1 > 0 && ISW[blocks[idx(x, y - depth - 1, z)]]) depth++;
       const f = 1 - depth * 0.035;
       r *= f; g *= f; b *= f;
     } else {

@@ -188,6 +188,7 @@
     World.disposeAll();
     G.Mobs.clear();
     G.Ent.clear();
+    G.Sim.clear();
     const seed = save && save.seed ? save.seed : Math.floor(Math.random() * 2 ** 31);
     const t0 = performance.now();
     await World.generate(seed, (p, text) => UI.setLoading(p * 0.85, text));
@@ -195,7 +196,11 @@
       UI.setLoading(0.86, 'Spielstand laden …');
       await U.nextFrame();
       try {
-        if (save.mods && save.mods.length) World.applyMods(save.mods);
+        if (save.mods && save.mods.length) {
+          World.applyMods(save.mods);
+          // Wasser, das beim Speichern noch floss, fließt weiter
+          G.Sim.wake(save.mods.map((m) => m[0]));
+        }
         if (save.chests) {
           for (const [key, items] of save.chests)
             World.chests.set(key, items.map((v) => (v ? (v[2] >= 0 ? { id: v[0], n: v[1], dur: v[2] } : { id: v[0], n: v[1] }) : null)));
@@ -525,6 +530,7 @@
         P.update(dt);
         G.Mobs.update(dt, P);
         G.Ent.update(dt, P);
+        G.Sim.update(dt);
         checkDiscoveries(dt);
         saveT -= dt;
         if (saveT <= 0) { saveT = 30; Game.save(); }

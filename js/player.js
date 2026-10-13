@@ -273,7 +273,7 @@
 
   P.breakBlock = (x, y, z) => {
     const id = World.get(x, y, z);
-    if (id === ID.AIR || id === ID.WATER) return;
+    if (id === ID.AIR || B.ISWATER[id]) return;
     const drops = I.blockDrops(id);
     for (const [iid, n] of drops) G.Ent.dropItem(iid, n, x + 0.5, y + 0.4, z + 0.5);
     if (id === ID.CHEST) {
@@ -364,6 +364,46 @@
       if (bd.interact === 'bed') { G.Game.sleep(tgt.block); return true; }
       if (bd.interact === 'craft') { G.UI.openInventory(true); return true; }
     }
+    // Eimer: stilles Wasser schöpfen
+    if (s && s.id === I.ID.BUCKET) {
+      const cam = P.camera.position;
+      const eye = eyePos();
+      const t0 = Math.max(0, fwd.dot(new THREE.Vector3().subVectors(eye, cam)) - 0.4);
+      const o = cam.clone().addScaledVector(fwd, t0);
+      const hit = World.raycast(o.x, o.y, o.z, fwd.x, fwd.y, fwd.z, REACH + 1.5, false, true);
+      if (hit && hit.water && new THREE.Vector3(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5).distanceTo(eye) <= REACH + 0.6) {
+        World.setBlock(hit.x, hit.y, hit.z, ID.AIR);
+        if (s.n > 1) {
+          s.n--;
+          if (P.inv.add(I.ID.WATER_BUCKET, 1) > 0) G.Ent.dropItem(I.ID.WATER_BUCKET, 1, P.pos.x, P.pos.y + 1, P.pos.z);
+        } else P.inv.slots[P.sel] = { id: I.ID.WATER_BUCKET, n: 1 };
+        G.Audio.play('bucket');
+        G.UI.inventoryChanged();
+        P.swingT = 0;
+        return true;
+      }
+      if (!(tgt && tgt.block && B.defs[tgt.block.id].interact)) {
+        G.UI.toast('Mit dem Eimer kannst du stilles Wasser schöpfen.');
+        return false;
+      }
+    }
+    // Wassereimer: Wasser ausgießen
+    if (s && s.id === I.ID.WATER_BUCKET && tgt && tgt.block) {
+      const b = tgt.block;
+      let x = b.x + b.nx, y = b.y + b.ny, z = b.z + b.nz;
+      if (B.defs[b.id].replaceable || B.WASH[b.id]) { x = b.x; y = b.y; z = b.z; }
+      const cur = World.get(x, y, z);
+      if (World.inside(x, z) && y > 0 && y < World.H - 1 && (cur === ID.AIR || B.ISWATER[cur] || B.WASH[cur])) {
+        if (B.WASH[cur]) for (const [iid, n] of I.blockDrops(cur)) G.Ent.dropItem(iid, n, x + 0.5, y + 0.3, z + 0.5);
+        World.setBlock(x, y, z, ID.WATER);
+        P.inv.slots[P.sel] = { id: I.ID.BUCKET, n: 1 };
+        G.Audio.play('bucket');
+        G.UI.inventoryChanged();
+        P.swingT = 0;
+        return true;
+      }
+      return false;
+    }
     if (d && d.food) {
       if (P.health >= P.maxHealth) { G.UI.toast('Du bist schon ganz gesund.'); return true; }
       P.health = Math.min(P.maxHealth, P.health + d.food);
@@ -383,7 +423,7 @@
       if (targetDef.replaceable) { x = b.x; y = b.y; z = b.z; }
       if (!World.inside(x, z) || y < 1 || y >= World.H - 1) return false;
       const cur = World.get(x, y, z);
-      if (cur !== ID.AIR && cur !== ID.WATER && !B.defs[cur].replaceable) return false;
+      if (cur !== ID.AIR && !B.ISWATER[cur] && !B.defs[cur].replaceable) return false;
       const nd = B.defs[d.block];
       if (nd.render === 'torch' || nd.render === 'cross') {
         const below = World.get(x, y - 1, z);
@@ -458,6 +498,13 @@
     let speed = sprint ? 5.8 : 4.3;
     if (P.inWater) speed = 2.6;
     wish.multiplyScalar(speed);
+    // Strömung: fließendes Wasser trägt einen mit
+    const flow = World.flowAt(Math.floor(P.pos.x), Math.floor(P.pos.y + 0.1), Math.floor(P.pos.z));
+    if (flow) {
+      wish.x += flow.x * 2.8;
+      wish.z += flow.z * 2.8;
+      if (flow.down) P.vel.y -= 10 * dt;
+    }
     const accel = P.onGround ? 14 : P.inWater ? 6 : 3.5;
     P.vel.x += (wish.x - P.vel.x) * Math.min(1, accel * dt);
     P.vel.z += (wish.z - P.vel.z) * Math.min(1, accel * dt);
@@ -683,7 +730,7 @@
       cam.updateProjectionMatrix();
     }
     // Kopf unter Wasser?
-    P.headInWater = World.get(Math.floor(cam.position.x), Math.floor(cam.position.y), Math.floor(cam.position.z)) === ID.WATER;
+    P.headInWater = Phys.submerged(cam.position.x, cam.position.y, cam.position.z);
   };
 
   P.serialize = () => ({

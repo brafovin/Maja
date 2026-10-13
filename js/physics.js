@@ -64,8 +64,15 @@
       moveAxis(e, 2, e.vel.z * sdt);
     }
     const W = World;
-    e.inWater = W.get(Math.floor(e.pos.x), Math.floor(e.pos.y + 0.35), Math.floor(e.pos.z)) === G.B.ID.WATER;
-    e.headInWater = W.get(Math.floor(e.pos.x), Math.floor(e.pos.y + e.h * 0.9), Math.floor(e.pos.z)) === G.B.ID.WATER;
+    e.inWater = Phys.submerged(e.pos.x, e.pos.y + 0.35, e.pos.z);
+    e.headInWater = Phys.submerged(e.pos.x, e.pos.y + e.h * 0.9, e.pos.z);
+  };
+
+  // Liegt dieser Punkt unter der Wasseroberfläche? (flaches, fließendes Wasser zählt erst ab einer gewissen Höhe)
+  Phys.submerged = (x, y, z) => {
+    const cy = Math.floor(y);
+    const h = World.waterAt(Math.floor(x), cy, Math.floor(z));
+    return h >= 0 && y - cy < Math.max(h, 0.15);
   };
 
   // Ist ein Quader an der Position frei?

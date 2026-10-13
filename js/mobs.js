@@ -433,7 +433,7 @@
           const ax = Math.floor(this.pos.x + moveX * 0.9), az = Math.floor(this.pos.z + moveZ * 0.9);
           let drop = 0;
           for (; drop < 4; drop++) if (World.isSolid(ax, Math.floor(this.pos.y) - 1 - drop, az)) break;
-          const wet = World.get(ax, Math.floor(this.pos.y) - 1, az) === ID.WATER;
+          const wet = B.ISWATER[World.get(ax, Math.floor(this.pos.y) - 1, az)] === 1;
           if ((drop >= 3 || (wet && !this.inWater)) && this.state !== 'panic') {
             this.yaw += Math.PI * (0.5 + Math.random());
             speed = 0;
@@ -443,7 +443,9 @@
 
       // Bewegung
       const accel = this.onGround ? 12 : 3;
-      const tvx = moveX * speed, tvz = moveZ * speed;
+      let tvx = moveX * speed, tvz = moveZ * speed;
+      const flow = World.flowAt(Math.floor(this.pos.x), Math.floor(this.pos.y + 0.1), Math.floor(this.pos.z));
+      if (flow) { tvx += flow.x * 2.2; tvz += flow.z * 2.2; }
       this.vel.x += (tvx - this.vel.x) * Math.min(1, accel * dt);
       this.vel.z += (tvz - this.vel.z) * Math.min(1, accel * dt);
       if (this.inWater) {
@@ -603,7 +605,7 @@
     if (!World.inside(x, z)) return null;
     const y = World.heightAt(x, z);
     const b = World.get(x, y, z);
-    if (b === ID.WATER || b === ID.ICE || !B.SOLID[b] || B.defs[b].render === 'leaves') return null;
+    if (B.ISWATER[b] || b === ID.ICE || !B.SOLID[b] || B.defs[b].render === 'leaves') return null;
     if (World.isSolid(x, y + 1, z) || World.isSolid(x, y + 2, z)) return null;
     return { x: x + 0.5, y: y + 1, z: z + 0.5, b };
   }
@@ -725,7 +727,7 @@
       for (let k = 0; k < 10; k++) {
         const y = Math.floor(U.clamp(player.pos.y + U.randInt(-8, 8), 3, top - 3));
         if (!World.isSolid(x, y - 1, z) || World.isSolid(x, y, z) || World.isSolid(x, y + 1, z)) continue;
-        if (World.get(x, y, z) === ID.WATER) continue;
+        if (B.ISWATER[World.get(x, y, z)]) continue;
         const L = World.lightAt(x, y, z);
         if (L.sky < 4 && L.block < 5) { spot = { x: x + 0.5, y, z: z + 0.5 }; break; }
       }

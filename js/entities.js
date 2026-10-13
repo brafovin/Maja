@@ -161,6 +161,8 @@
         d.vel.z *= 1 - Math.min(1, dt * (d.onGround ? 8 : 1));
         Phys.move(d, dt);
         if (d.inWater) d.vel.y = 1;
+        const flow = World.flowAt(Math.floor(d.pos.x), Math.floor(d.pos.y + 0.05), Math.floor(d.pos.z));
+        if (flow) { d.vel.x += flow.x * dt * 14; d.vel.z += flow.z * dt * 14; }
       }
       d.sprite.position.set(d.pos.x, d.pos.y + 0.22 + Math.sin(d.t * 3) * 0.05, d.pos.z);
       const L = World.lightAt(d.pos.x, d.pos.y + 0.3, d.pos.z);
@@ -256,7 +258,7 @@
           if (d > r + U.rand(-0.6, 0.6)) continue;
           const bx = Math.floor(x + dx), by = Math.floor(y + dy), bz = Math.floor(z + dz);
           const id = World.get(bx, by, bz);
-          if (id === ID.AIR || id === ID.WATER || id === ID.BEDROCK || id === ID.CHEST) continue;
+          if (id === ID.AIR || B.ISWATER[id] || id === ID.BEDROCK || id === ID.CHEST) continue;
           if (!World.inside(bx, bz) || by <= 0) continue;
           list.push([bx, by, bz, ID.AIR]);
           if (drops < 12 && Math.random() < 0.25) {
