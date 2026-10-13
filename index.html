@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Blockwelt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=VT323&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- Spielanzeige -->
+<div id="hud" hidden>
+  <div id="hud-tl" class="hud-panel">
+    <div id="hud-name"></div>
+    <div id="hud-gold"><img id="hud-gold-icon" alt=""><span id="hud-gold-n">0</span> Gold</div>
+    <div id="hud-pos"></div>
+  </div>
+  <div id="hud-tr">
+    <canvas id="minimap" width="320" height="320" title="Karte öffnen (M)"></canvas>
+    <div id="hud-time" class="hud-panel"><img id="hud-weather-icon" alt=""><span id="hud-clock">06:00</span><span id="hud-weather"></span></div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="toasts"></div>
+  <div id="hud-bottom">
+    <div id="held-name"></div>
+    <div id="hearts"></div>
+    <div id="hotbar"></div>
+  </div>
+  <div id="fx-hurt"></div>
+  <div id="fx-water"></div>
+</div>
+<div id="fx-black"></div>
+
+<!-- Touch-Steuerung -->
+<div id="touch" hidden>
+  <div id="joy"><div id="joy-knob"></div></div>
+  <div id="touch-look"></div>
+  <div id="touch-btns">
+    <button class="tbtn" id="tb-jump" aria-label="Springen">Sprung</button>
+    <button class="tbtn" id="tb-mine" aria-label="Abbauen und angreifen">Hacken</button>
+    <button class="tbtn" id="tb-use" aria-label="Bauen und benutzen">Bauen</button>
+    <button class="tbtn small" id="tb-sprint" aria-label="Rennen umschalten">Rennen</button>
+  </div>
+  <div id="touch-top">
+    <button class="tbtn small" id="tb-inv">Inventar</button>
+    <button class="tbtn small" id="tb-cam">Kamera</button>
+    <button class="tbtn small" id="tb-pause">Menü</button>
+  </div>
+</div>
+
+<!-- Titel -->
+<div id="scr-title" class="screen" hidden>
+  <div class="title-wrap">
+    <h1 class="logo">Blockwelt</h1>
+    <p class="tagline">Erkunde die Insel, finde das Gold in den Tempeln und überlebe die Nacht.</p>
+    <div class="title-card panel">
+      <div id="title-hello"></div>
+      <div class="btn-col">
+        <button class="btn primary" id="btn-play">Spielen</button>
+        <button class="btn" id="btn-look">Aussehen ändern</button>
+        <button class="btn danger" id="btn-newworld">Neue Welt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charakter erstellen -->
+<div id="scr-creator" class="screen" hidden>
+  <div class="creator-stage" aria-hidden="true">
+    <div class="stage-hint">Ziehen zum Drehen</div>
+  </div>
+  <div class="creator-panel panel">
+    <h2 id="creator-title">Erstelle deine Figur</h2>
+    <div class="field">
+      <label for="cr-name">Name</label>
+      <input id="cr-name" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Wie heißt du?">
+      <div class="note" id="cr-name-note">Den Namen kannst du nur ein einziges Mal festlegen.</div>
+    </div>
+    <div id="cr-colors"></div>
+    <div class="field">
+      <span class="label">Frisur</span>
+      <div class="seg" id="cr-hairstyle">
+        <button data-v="kurz">Kurz</button>
+        <button data-v="lang">Lang</button>
+        <button data-v="zopf">Zopf</button>
+      </div>
+    </div>
+    <div class="creator-actions">
+      <button class="btn" id="cr-random">Zufällig</button>
+      <button class="btn primary" id="cr-done">Los geht's!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Laden -->
+<div id="scr-loading" class="screen" hidden>
+  <div class="loading-box">
+    <h2 class="logo small">Blockwelt</h2>
+    <div class="bar"><div id="load-bar"></div></div>
+    <div id="load-text">Welt wird erschaffen …</div>
+  </div>
+</div>
+
+<!-- Inventar und Herstellen -->
+<div id="scr-inv" class="screen dim" hidden>
+  <div class="inv-layout">
+    <div class="panel inv-panel">
+      <div class="panel-head"><h2>Inventar</h2><button class="btn small" data-close>Schließen</button></div>
+      <div class="inv-grid" id="inv-main"></div>
+      <div class="inv-grid hotrow" id="inv-hot"></div>
+      <p class="hint">Antippen zum Aufnehmen und Ablegen. Mit Umschalt+Klick schnell verschieben.</p>
+    </div>
+    <div class="panel craft-panel">
+      <div class="panel-head"><h2>Herstellen</h2></div>
+      <div id="craft-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Truhe -->
+<div id="scr-chest" class="screen dim" hidden>
+  <div class="panel chest-panel">
+    <div class="panel-head"><h2>Truhe</h2><button class="btn small" data-close>Schließen</button></div>
+    <div class="inv-grid" id="chest-grid"></div>
+    <div class="chest-actions"><button class="btn small" id="chest-take">Alles nehmen</button></div>
+    <h3>Dein Inventar</h3>
+    <div class="inv-grid" id="chest-inv"></div>
+    <div class="inv-grid hotrow" id="chest-hot"></div>
+  </div>
+</div>
+<div id="cursor-stack" hidden></div>
+
+<!-- Pause -->
+<div id="scr-pause" class="screen dim" hidden>
+  <div class="panel pause-panel">
+    <h2>Pause</h2>
+    <div class="btn-col">
+      <button class="btn primary" id="p-resume">Weiterspielen</button>
+    </div>
+    <div class="settings">
+      <div class="set-row"><span>Wetter</span>
+        <div class="seg" id="p-weather">
+          <button data-v="klar">Klar</button><button data-v="regen">Regen</button><button data-v="gewitter">Gewitter</button><button data-v="schnee">Schnee</button>
+        </div>
+      </div>
+      <div class="set-row"><span>Tageszeit</span>
+        <div class="seg" id="p-time">
+          <button data-v="0.02">Morgen</button><button data-v="0.25">Mittag</button><button data-v="0.47">Abend</button><button data-v="0.75">Nacht</button>
+        </div>
+      </div>
+      <div class="set-row"><span>Monster</span><div class="seg" id="p-monsters"><button data-v="1">An</button><button data-v="0">Aus</button></div></div>
+      <div class="set-row"><span>Kamera</span><div class="seg" id="p-cam"><button data-v="third">Hinter der Figur</button><button data-v="first">Ich-Sicht</button></div></div>
+      <div class="set-row"><span>Sichtweite</span><div class="seg" id="p-view"><button data-v="4">Nah</button><button data-v="6">Mittel</button><button data-v="8">Weit</button></div></div>
+      <div class="set-row"><span>Ton</span><div class="seg" id="p-sound"><button data-v="1">An</button><button data-v="0">Aus</button></div></div>
+      <div class="set-row"><span>Auto-Sprung</span><div class="seg" id="p-autojump"><button data-v="1">An</button><button data-v="0">Aus</button></div></div>
+    </div>
+    <details class="controls">
+      <summary>Steuerung</summary>
+      <dl>
+        <dt>W A S D</dt><dd>Laufen</dd>
+        <dt>Maus</dt><dd>Umsehen</dd>
+        <dt>Leertaste</dt><dd>Springen, im Wasser schwimmen</dd>
+        <dt>Umschalt</dt><dd>Rennen</dd>
+        <dt>Linke Maustaste</dt><dd>Abbauen und angreifen (gedrückt halten)</dd>
+        <dt>Rechte Maustaste</dt><dd>Bauen, Truhe öffnen, essen, schlafen</dd>
+        <dt>1 – 9, Mausrad</dt><dd>Gegenstand wählen</dd>
+        <dt>E</dt><dd>Inventar und Herstellen</dd>
+        <dt>M</dt><dd>Große Karte</dd>
+        <dt>V</dt><dd>Kamera wechseln</dd>
+        <dt>Q</dt><dd>Gegenstand fallen lassen</dd>
+        <dt>Esc</dt><dd>Menü</dd>
+      </dl>
+    </details>
+    <div class="btn-row">
+      <button class="btn" id="p-look">Aussehen ändern</button>
+      <button class="btn" id="p-title">Zum Titelbild</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tod -->
+<div id="scr-death" class="screen death" hidden>
+  <div class="death-box">
+    <h2>Du bist gestorben!</h2>
+    <p id="death-cause"></p>
+    <p class="note">Deine Sachen behältst du.</p>
+    <button class="btn primary" id="btn-respawn">Wiederbeleben</button>
+  </div>
+</div>
+
+<!-- Große Karte -->
+<div id="scr-map" class="screen dim" hidden>
+  <div class="panel map-panel">
+    <div class="panel-head"><h2>Karte der Insel</h2><button class="btn small" data-close>Schließen</button></div>
+    <canvas id="bigmap" width="768" height="768"></canvas>
+    <div class="legend">
+      <span><i class="lg lg-you"></i>Du</span>
+      <span><i class="lg lg-village"></i>Dorf</span>
+      <span><i class="lg lg-temple"></i>Tempel</span>
+      <span><i class="lg lg-rumor"></i>Gerücht: Tempel</span>
+      <span><i class="lg lg-mob"></i>Monster</span>
+    </div>
+  </div>
+</div>
+
+<!-- Bestätigung -->
+<div id="modal" class="screen dim" hidden>
+  <div class="panel modal-box">
+    <h2 id="modal-title"></h2>
+    <p id="modal-text"></p>
+    <div class="btn-row">
+      <button class="btn" id="modal-no">Abbrechen</button>
+      <button class="btn primary" id="modal-yes">OK</button>
+    </div>
+  </div>
+</div>
+
+<noscript>Dieses Spiel braucht JavaScript.</noscript>
+
+<script src="lib/three.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/blocks.js"></script>
+<script src="js/items.js"></script>
+<script src="js/world.js"></script>
+<script src="js/character.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/mobs.js"></script>
+<script src="js/sky.js"></script>
+<script src="js/player.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
